@@ -93,38 +93,9 @@ jobs:
         with:
           tool: cargo-ndk
 
-      # The shim has to exist before the Rust libraries are built: they link
-      # against it.
-      - name: Build the Oboe shim
+      - name: Build the native libraries
         run: |
-          # The NDK's own CMake is used: the one on the runner is often
-          # newer than the projects being built can handle.
-          CMAKE="$(ls -d "$ANDROID_NDK"/build/cmake/*/bin/cmake | head -1)"
-          "$CMAKE" --version | head -1
-          for ABI in arm64-v8a armeabi-v7a x86_64; do
-            "$CMAKE" -S cpp -B "build/oboe/$ABI" \
-              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
-              -DANDROID_ABI="$ABI" \
-              -DANDROID_PLATFORM=android-26 \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-              -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$PWD/build/native/jniLibs/$ABI" \
-              >/dev/null
-            "$CMAKE" --build "build/oboe/$ABI" --config Release -j2 >/dev/null
-          done
-          find build/native/jniLibs -name "*.so" | sort
-
-      - name: Build the Rust libraries
-        env:
-          VIMO_NATIVE_LIB_DIR: ${{ github.workspace }}/build/native/jniLibs
-        run: |
-          cargo ndk \
-            -t arm64-v8a \
-            -t armeabi-v7a \
-            -t x86_64 \
-            -o build/native/jniLibs \
-            build --release \
-            -p vimo-jni
+          scripts/build-native.sh build/native arm64-v8a armeabi-v7a x86_64
 
       - name: Collect the assets
         run: |
