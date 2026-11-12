@@ -1,0 +1,137 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Format, lint and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache the cargo registry and the build directory
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            rust-${{ runner.os }}-
+
+      - name: Cache the cargo binaries
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin
+          key: cargo-bin-${{ runner.os }}
+
+      - name: Check the formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Benchmark
+        run: cargo run --release -p vimo-bench
+
+  android:
+    name: Build the Android libraries
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache the cargo registry and the build directory
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/android
+          key: android-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            android-${{ runner.os }}-
+
+      - name: Cache the cargo binaries
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin
+          key: cargo-bin-${{ runner.os }}
+
+      - name: Set up the NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      - name: Install cargo-ndk
+        uses: taiki-e/install-action@cargo-ndk
+
+      - name: Build
+        run: |
+          cargo ndk \
+            -t arm64-v8a \
+            -t armeabi-v7a \
+            -t x86_64 \
+            -o build/android/jniLibs \
+            build --release \
+            -p vimo-jni
+
+      - name: Upload the libraries
+        uses: actions/upload-artifact@v7
+        with:
+          name: vimo-native-libraries
+          path: build/android/jniLibs
+          if-no-files-found: error
+          retention-days: 14
+
+  prune-caches:
+    name: Prune old Actions caches
+    needs: [check, android]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Keep the 20 newest repository caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          mapfile -t stale_ids < <(
+            gh api --paginate "repos/${REPOSITORY}/actions/caches?per_page=100" \
+              --jq '.actions_caches[] | [.id, .created_at] | @tsv' \
+              | sort -k2,2r \
+              | awk 'NR > 20 { print $1 }'
+          )
+          for cache_id in "${stale_ids[@]}"; do
+            gh api --silent --method DELETE "repos/${REPOSITORY}/actions/caches/${cache_id}"
+          done

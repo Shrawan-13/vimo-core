@@ -12,6 +12,7 @@ vimo-foundation = { workspace = true }
 vimo-manifest = { workspace = true }
 vimo-project = { workspace = true }
 vimo-render = { workspace = true }
+vimo-gl = { workspace = true }
 vimo-media = { workspace = true }
 vimo-audio = { workspace = true }
 vimo-resources = { workspace = true }

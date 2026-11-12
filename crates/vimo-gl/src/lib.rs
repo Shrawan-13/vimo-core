@@ -26,6 +26,7 @@
 #![forbid(unsafe_code)]
 
 pub mod api;
+pub mod library;
 pub mod mock;
 pub mod renderer;
 pub mod shaders;
@@ -35,6 +36,7 @@ pub use api::{
     FramebufferId, FramebufferTarget, GlApi, GlError, ProgramId, ShaderId, ShaderKind,
     TextureFormat, TextureId, TextureParam, TextureTarget, UniformLocation, VertexArrayId,
 };
+pub use library::ShaderLibrary;
 pub use mock::{Call, MockGl};
 pub use renderer::{GlRenderer, NoShaders, ShaderSourceProvider};
 pub use shaders::{

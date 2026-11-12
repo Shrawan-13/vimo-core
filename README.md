@@ -63,7 +63,14 @@ testable and has no knowledge of the layer above it.
 | `vimo-device` | Capability tiers, the quality ladder, thermal monitoring with hysteresis. |
 | `vimo-engine` | The engine: session, master clock, playback, prefetching, export, the dedicated render thread. |
 | `vimo-ffi` | The C ABI (`libvimo_core.so`) plus `include/vimo_core.h`. |
+| `vimo-android` | The Android platform layer: EGL + OpenGL ES 3, MediaCodec, Oboe, the device profile, the Perfetto sink and the zero-copy surface path. |
+| `vimo-jni` | The JNI bindings between Kotlin and the core. |
 | `vimo-bench` | Benchmarks with **enforced performance budgets**. |
+
+The `assets/` directory holds the **effect library**: the manifest that says
+which effects exist and the GLSL that implements them. The app packages them
+as APK assets and hands them to the core at start-up, where the manifest and
+the shaders are checked against each other.
 
 ---
 
@@ -161,7 +168,9 @@ implements `GlApi` on top of the NDK's GLES3.
 
 ### [3] Media I/O
 `vimo-media/src/decoder.rs` defines the decoder/encoder traits and ships
-software implementations for tests. `capability.rs` detects what the device
+software implementations for tests. `vimo-android/src/mediacodec.rs` is the
+hardware implementation: it decodes into a surface, which the GPU then samples
+directly. `capability.rs` detects what the device
 can do and picks the best path. `vfr.rs` handles variable frame rates by
 keeping the real presentation timestamps. `surface.rs` defines the zero-copy
 `Surface → GPU texture` contract.
@@ -228,10 +237,14 @@ settings, the files and the export. The UI reads the project through
 
 ```sh
 cargo build --workspace          # build everything
-cargo test  --workspace          # 250 tests
+cargo test  --workspace          # 250+ tests
 cargo run  --release -p vimo-bench   # benchmarks with enforced budgets
 cargo +nightly fuzz run project_loader
 ```
+
+The Android libraries are built with `cargo ndk` and published as a release
+asset; the Vimo app downloads that asset at build time, so the app repository
+contains no native code. See `.github/workflows/native-release.yml`.
 
 ## Benchmarks
 
@@ -273,6 +286,7 @@ port it to a platform, implement:
 | `TraceSink` | `vimo-foundation` | emit Perfetto spans |
 | `DeviceProbe` | `vimo-device` | report the device tier |
 | `GlApi` | `vimo-gl` | the OpenGL ES calls the renderer makes |
+| `ShaderSourceProvider` | `vimo-gl` | where an effect's GLSL comes from |
 
 The Android implementations live in a separate repository
 (`Shrawan-13/vimo-android`), so the core's CI stays fast and does not need

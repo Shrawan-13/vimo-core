@@ -437,6 +437,52 @@ impl Clip {
         let speed = if self.speed.abs() < f32::EPSILON { 1.0 } else { self.speed };
         TimeRange::new(self.source_in, self.source_in + Time::from_secs_f64(dur.as_secs_f64() * speed as f64))
     }
+
+    /// Trim the clip to `range`, keeping the picture in sync.
+    ///
+    /// Trimming the **head** of a clip must advance the source in-point by the
+    /// same amount, otherwise the picture jumps to a different part of the
+    /// source. Trimming the tail simply shortens the clip. The result is
+    /// clamped to `source_duration` so that a clip can never run past the end
+    /// of its media.
+    #[must_use]
+    pub fn trimmed(&self, range: TimeRange, source_duration: Time) -> Clip {
+        let mut clip = self.clone();
+        let old_start = clip.timeline.start;
+        let new_start = range.start.max(old_start);
+        let new_end = range.end.max(new_start);
+
+        // How much of the head was removed, in source time.
+        let head = new_start - old_start;
+        if head > Time::ZERO {
+            let speed = if clip.speed.abs() < f32::EPSILON { 1.0 } else { clip.speed };
+            let advance = Time::from_secs_f64(head.as_secs_f64() * speed as f64);
+            clip.source_in += advance;
+        }
+
+        // The clip may not run past the end of the source.
+        let speed = if clip.speed.abs() < f32::EPSILON { 1.0 } else { clip.speed };
+        let max_duration = Time::from_secs_f64(source_duration.as_secs_f64() / speed as f64);
+        let duration = (new_end - new_start).min(max_duration);
+        clip.timeline = TimeRange::new(new_start, new_start + duration);
+        clip
+    }
+
+    /// Split the clip at `at`, returning the second half.
+    ///
+    /// The second half continues where the first one stopped, so the picture
+    /// does not jump across the cut.
+    #[must_use]
+    pub fn split_at(&self, at: Time) -> Option<Clip> {
+        if at <= self.timeline.start || at >= self.timeline.end {
+            return None;
+        }
+        let speed = if self.speed.abs() < f32::EPSILON { 1.0 } else { self.speed };
+        let mut second = self.clone();
+        second.timeline = TimeRange::new(at, self.timeline.end);
+        second.source_in = self.source_in + Time::from_secs_f64((at - self.timeline.start).as_secs_f64() * speed as f64);
+        Some(second)
+    }
 }
 
 /// A timeline track.
@@ -666,6 +712,90 @@ mod tests {
         assert!(BlendMode::Normal.is_separable());
         assert!(BlendMode::Normal.gl_factors().is_some());
         assert!(BlendMode::Luminosity.gl_factors().is_none());
+    }
+
+    #[test]
+    fn trimming_the_head_advances_the_source() {
+        let clip = Clip::new(
+            0,
+            vimo_foundation::time::TimeRange::new(
+                vimo_foundation::time::Time::from_secs(5),
+                vimo_foundation::time::Time::from_secs(10),
+            ),
+            vimo_foundation::time::Time::from_secs(2),
+        );
+        // Trim two seconds off the head: the source must advance by two
+        // seconds, otherwise the picture jumps.
+        let trimmed = clip.trimmed(
+            vimo_foundation::time::TimeRange::new(
+                vimo_foundation::time::Time::from_secs(7),
+                vimo_foundation::time::Time::from_secs(10),
+            ),
+            vimo_foundation::time::Time::from_secs(30),
+        );
+        assert_eq!(trimmed.source_in, vimo_foundation::time::Time::from_secs(4));
+        assert_eq!(trimmed.timeline.start, vimo_foundation::time::Time::from_secs(7));
+        assert_eq!(trimmed.duration(), vimo_foundation::time::Time::from_secs(3));
+    }
+
+    #[test]
+    fn trimming_the_tail_leaves_the_source_alone() {
+        let clip = Clip::new(
+            0,
+            vimo_foundation::time::TimeRange::new(
+                vimo_foundation::time::Time::from_secs(5),
+                vimo_foundation::time::Time::from_secs(10),
+            ),
+            vimo_foundation::time::Time::from_secs(2),
+        );
+        let trimmed = clip.trimmed(
+            vimo_foundation::time::TimeRange::new(
+                vimo_foundation::time::Time::from_secs(5),
+                vimo_foundation::time::Time::from_secs(8),
+            ),
+            vimo_foundation::time::Time::from_secs(30),
+        );
+        assert_eq!(trimmed.source_in, vimo_foundation::time::Time::from_secs(2));
+        assert_eq!(trimmed.duration(), vimo_foundation::time::Time::from_secs(3));
+    }
+
+    #[test]
+    fn trimming_cannot_run_past_the_source() {
+        let clip = Clip::new(
+            0,
+            vimo_foundation::time::TimeRange::new(
+                vimo_foundation::time::Time::from_secs(0),
+                vimo_foundation::time::Time::from_secs(5),
+            ),
+            vimo_foundation::time::Time::from_secs(0),
+        );
+        let trimmed = clip.trimmed(
+            vimo_foundation::time::TimeRange::new(
+                vimo_foundation::time::Time::from_secs(0),
+                vimo_foundation::time::Time::from_secs(60),
+            ),
+            vimo_foundation::time::Time::from_secs(10),
+        );
+        assert_eq!(trimmed.duration(), vimo_foundation::time::Time::from_secs(10));
+    }
+
+    #[test]
+    fn splitting_continues_the_source() {
+        let clip = Clip::new(
+            0,
+            vimo_foundation::time::TimeRange::new(
+                vimo_foundation::time::Time::from_secs(5),
+                vimo_foundation::time::Time::from_secs(10),
+            ),
+            vimo_foundation::time::Time::from_secs(2),
+        );
+        let second = clip
+            .split_at(vimo_foundation::time::Time::from_secs(7))
+            .expect("a split inside the clip");
+        assert_eq!(second.source_in, vimo_foundation::time::Time::from_secs(4));
+        assert_eq!(second.timeline.start, vimo_foundation::time::Time::from_secs(7));
+        assert_eq!(second.duration(), vimo_foundation::time::Time::from_secs(3));
+        assert!(clip.split_at(vimo_foundation::time::Time::from_secs(5)).is_none());
     }
 
     #[test]

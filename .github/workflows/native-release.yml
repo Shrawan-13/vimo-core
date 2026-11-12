@@ -1,0 +1,168 @@
+name: Native release
+
+# Builds the Android native libraries and publishes them as a release asset.
+#
+# The Vimo app does not contain any Rust: it downloads this artifact at build
+# time. That keeps the app repository small and means the native code is
+# built and tested in one place.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to publish (for example 0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: native-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the native libraries
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Work out the version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing version $VERSION"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache the cargo registry and the build directory
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: native-${{ runner.os }}-${{ steps.version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            native-${{ runner.os }}-${{ steps.version.outputs.version }}-
+
+      - name: Cache the NDK
+        id: cache-ndk
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.ndk.outputs.ndk-path }}
+          key: ndk-27.2.12479018-${{ runner.os }}
+
+      - name: Set up the NDK
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      - name: Install cargo-ndk
+        uses: taiki-e/install-action@cargo-ndk
+
+      - name: Build the Rust libraries
+        run: |
+          cargo ndk \
+            -t arm64-v8a \
+            -t armeabi-v7a \
+            -t x86_64 \
+            -o build/native/jniLibs \
+            build --release \
+            -p vimo-jni
+
+      - name: Build the Oboe shim
+        run: |
+          git clone --depth 1 --branch 1.8.0 https://github.com/google/oboe.git third_party/oboe
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
+            cmake -S cpp -B "build/oboe/$ABI" \
+              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI="$ABI" \
+              -DANDROID_PLATFORM=android-26 \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$PWD/build/native/jniLibs/$ABI" \
+              -DCMAKE_PREFIX_PATH="$PWD/third_party/oboe/prefab" \
+              -Doboe_DIR="$PWD/third_party/oboe/prefab/modules/oboe/libs/android.26/arm64-v8a" \
+              >/dev/null
+            cmake --build "build/oboe/$ABI" --config Release -j2 >/dev/null
+          done
+
+      - name: Collect the assets
+        run: |
+          mkdir -p build/native/assets/vimo/manifests build/native/assets/vimo/shaders
+          cp assets/manifests/*.json build/native/assets/vimo/manifests/
+          cp assets/shaders/*.frag build/native/assets/vimo/shaders/
+
+      - name: Write the checksums
+        shell: bash
+        run: |
+          cd build/native
+          find . -type f ! -name checksums.txt -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > checksums.txt
+          cat checksums.txt
+
+      - name: Pack the artifact
+        run: |
+          cd build/native
+          zip -r "../vimo-native-${{ steps.version.outputs.version }}-android.zip" .
+          cd ..
+          sha256sum "vimo-native-${{ steps.version.outputs.version }}-android.zip" \
+            > "vimo-native-${{ steps.version.outputs.version }}-android.zip.sha256"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/vimo-native-${{ steps.version.outputs.version }}-android.zip
+            build/vimo-native-${{ steps.version.outputs.version }}-android.zip.sha256
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Vimo native ${{ steps.version.outputs.version }}
+          body: |
+            The Android native libraries for the Vimo app.
+
+            Download `vimo-native-${{ steps.version.outputs.version }}-android.zip` and
+            unpack it: the `jniLibs` folder goes into the APK, the `assets` folder
+            holds the effect manifest and the shaders.
+
+            Verify the download with the `.sha256` file next to it.
+
+  prune-caches:
+    name: Prune old Actions caches
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Keep the 20 newest repository caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          mapfile -t stale_ids < <(
+            gh api --paginate "repos/${REPOSITORY}/actions/caches?per_page=100" \
+              --jq '.actions_caches[] | [.id, .created_at] | @tsv' \
+              | sort -k2,2r \
+              | awk 'NR > 20 { print $1 }'
+          )
+          for cache_id in "${stale_ids[@]}"; do
+            gh api --silent --method DELETE "repos/${REPOSITORY}/actions/caches/${cache_id}"
+          done

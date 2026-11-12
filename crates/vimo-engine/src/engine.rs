@@ -124,6 +124,8 @@ pub struct Engine {
     render_plan: std::sync::Arc<std::sync::Mutex<FramePlan>>,
     /// The render thread, if one is attached.
     render_thread: Option<RenderThread>,
+    /// The effect registry together with the shader sources.
+    shaders: vimo_gl::ShaderLibrary,
 }
 
 impl Engine {
@@ -169,6 +171,7 @@ impl Engine {
             resolver: None,
             render_plan: std::sync::Arc::new(std::sync::Mutex::new(FramePlan::new())),
             render_thread: None,
+            shaders: vimo_gl::ShaderLibrary::new(),
         };
         engine.intern_sources();
         engine
@@ -179,6 +182,7 @@ impl Engine {
     pub fn project(&self) -> &Project {
         &self.project
     }
+
 
     /// The project, mutably.
     ///
@@ -645,6 +649,34 @@ impl Engine {
     #[must_use]
     pub fn registry(&self) -> &EffectRegistry {
         &self.registry
+    }
+
+    /// The shader library (the registry plus the GLSL sources).
+    #[must_use]
+    pub fn shaders(&self) -> &vimo_gl::ShaderLibrary {
+        &self.shaders
+    }
+
+    /// The shader library, mutably.
+    ///
+    /// The platform loads the manifest and the shader sources here at start-up.
+    #[must_use]
+    pub fn shaders_mut(&mut self) -> &mut vimo_gl::ShaderLibrary {
+        &mut self.shaders
+    }
+
+    /// Register an effect type that the manifest declared.
+    pub fn add_effect_type(&mut self, desc: vimo_manifest::EffectDesc) -> VimoResult<vimo_manifest::EffectTypeId> {
+        self.shaders.add_effect(desc)
+    }
+
+    /// Check the loaded shaders against the manifest.
+    ///
+    /// Returns the mismatches. An empty result means the library is
+    /// consistent, which is what the loader checks before it hands the
+    /// project to the user.
+    pub fn validate_shaders(&self) -> Vec<vimo_render::shader::UniformMismatch> {
+        self.shaders.validate()
     }
 
     /// The number of frames the output has per second.

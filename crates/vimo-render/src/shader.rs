@@ -114,9 +114,19 @@ pub struct ShaderUniform {
     pub array_size: u32,
 }
 
-/// The built-in uniforms every Vimo shader may use.
-pub const BUILTIN_UNIFORMS: [&str; 5] =
-    ["u_time", "u_resolution", "u_texel", "u_opacity", "u_progress"];
+/// The uniforms the renderer supplies, which no manifest parameter may shadow.
+///
+/// `u_texture` and `u_texture2` carry the pictures a pass samples; the rest
+/// are the values the engine computes.
+pub const BUILTIN_UNIFORMS: [&str; 7] = [
+    "u_time",
+    "u_resolution",
+    "u_texel",
+    "u_opacity",
+    "u_progress",
+    "u_texture",
+    "u_texture2",
+];
 
 /// Parse the uniform declarations out of a GLSL source file.
 ///

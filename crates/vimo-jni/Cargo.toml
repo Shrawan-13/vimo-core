@@ -1,0 +1,26 @@
+[package]
+name = "vimo-jni"
+description = "The JNI bindings between the Kotlin UI and the Vimo Core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+name = "vimo_jni"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+vimo-android = { path = "../vimo-android" }
+vimo-core = { package = "vimo-ffi", path = "../vimo-ffi" }
+vimo-foundation = { workspace = true }
+vimo-project = { workspace = true }
+vimo-engine = { workspace = true }
+vimo-manifest = { workspace = true }
+jni = "0.21"
+log = "0.4"
+serde_json = { workspace = true }
+
+[lints.rust]
+unsafe_code = "allow"

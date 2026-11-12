@@ -21,3 +21,4 @@ vimo-audio = { workspace = true }
 vimo-resources = { workspace = true }
 vimo-device = { workspace = true }
 vimo-engine = { workspace = true }
+serde_json = { workspace = true }

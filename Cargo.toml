@@ -13,6 +13,8 @@ members = [
     "crates/vimo-engine",
     "crates/vimo-ffi",
     "crates/vimo-bench",
+    "crates/vimo-android",
+    "crates/vimo-jni",
 ]
 
 [workspace.package]

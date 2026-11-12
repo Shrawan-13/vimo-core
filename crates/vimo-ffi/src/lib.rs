@@ -562,6 +562,66 @@ pub unsafe extern "C" fn vimo_engine_snapshot(
     })
 }
 
+/// Load the effect manifest and the shader sources into the engine.
+///
+/// The platform reads the text from its own asset store and passes it here;
+/// the core registers the effects, pairs them with their shaders and checks
+/// that the two agree.
+///
+/// Returns the number of interface mismatches (zero is good) or a negative
+/// status code.
+///
+/// # Safety
+/// `engine` must be a valid handle and both strings must be valid UTF-8.
+#[no_mangle]
+pub unsafe extern "C" fn vimo_engine_load_effects(
+    engine: *mut VimoEngine,
+    manifest: *const u8,
+    manifest_len: usize,
+    shaders: *const u8,
+    shaders_len: usize,
+) -> i32 {
+    guard_value(|| {
+        if engine.is_null() {
+            return Err(status::INVALID_HANDLE);
+        }
+        let manifest_text = match std::str::from_utf8(unsafe {
+            std::slice::from_raw_parts(manifest, manifest_len)
+        }) {
+            Ok(text) => text,
+            Err(_) => return Err(status::INVALID_ARGUMENT),
+        };
+        let shaders_text = match std::str::from_utf8(unsafe {
+            std::slice::from_raw_parts(shaders, shaders_len)
+        }) {
+            Ok(text) => text,
+            Err(_) => return Err(status::INVALID_ARGUMENT),
+        };
+
+        // SAFETY: the caller guarantees the handle is valid.
+        let handle = unsafe { &*engine };
+        let mut guard = match handle.inner.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let engine = &mut *guard;
+        if engine.shaders_mut().load_manifest(manifest_text).is_err() {
+            return Err(status::ERROR);
+        }
+        let sources: std::collections::HashMap<String, String> =
+            match serde_json::from_str(shaders_text) {
+                Ok(sources) => sources,
+                Err(_) => return Err(status::INVALID_ARGUMENT),
+            };
+        for (path, source) in sources {
+            engine.shaders_mut().add_source(path, source);
+        }
+        // The interface is checked now, so a manifest that does not match its
+        // shaders is found at start-up rather than on the user's device.
+        Ok(engine.validate_shaders().len() as i32)
+    })
+}
+
 /// The ABI version this library implements.
 #[no_mangle]
 pub extern "C" fn vimo_abi_version() -> u32 {
@@ -748,10 +808,15 @@ fn apply_command(
             let Some(data) = engine.project().clip(clip) else {
                 return Err(status::INVALID_ARGUMENT);
             };
+            // The trim keeps the source in sync and is clamped to the media.
+            let source_duration = engine
+                .project()
+                .asset(data.asset)
+                .map(|a| a.duration)
+                .unwrap_or(Time::ZERO);
             let before = data.clone();
-            let command = vimo_project::Command::edit_clip(clip, before, |c| {
-                c.timeline = TimeRange::new(start, end);
-            });
+            let trimmed = data.trimmed(TimeRange::new(start, end), source_duration);
+            let command = vimo_project::Command::UpdateClip { clip, before, after: trimmed };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -761,23 +826,27 @@ fn apply_command(
             let Some(data) = engine.project().clip(clip) else {
                 return Err(status::INVALID_ARGUMENT);
             };
-            if at <= data.timeline.start || at >= data.timeline.end {
+            let Some(second) = data.split_at(at) else {
                 return Err(status::INVALID_ARGUMENT);
-            }
+            };
             let Some(track) = engine.project().track_of_clip(clip) else {
                 return Err(status::INVALID_ARGUMENT);
             };
             let Some(position) = engine.project().clip_position(track, clip) else {
                 return Err(status::INVALID_ARGUMENT);
             };
-            let first = data.clone();
-            let mut second = data.clone();
-            second.timeline = TimeRange::new(at, data.timeline.end);
-            second.source_in = data.source_in + (at - data.timeline.start);
             // Trim the first clip, then add the second one after it.
-            let trim = vimo_project::Command::edit_clip(clip, first, |c| {
-                c.timeline = TimeRange::new(data.timeline.start, at);
-            });
+            let source_duration = engine
+                .project()
+                .asset(data.asset)
+                .map(|a| a.duration)
+                .unwrap_or(Time::ZERO);
+            let first = data.trimmed(TimeRange::new(data.timeline.start, at), source_duration);
+            let trim = vimo_project::Command::UpdateClip {
+                clip,
+                before: data.clone(),
+                after: first,
+            };
             engine.execute(trim).map_err(|_| status::ERROR)?;
             let add = vimo_project::Command::add_clip(track, position + 1, second);
             engine.execute(add).map_err(|_| status::ERROR)?;
