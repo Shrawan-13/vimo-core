@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -17,12 +18,22 @@
 
 namespace {
 
+// The ring holds this many frames. It must be a power of two so that the
+// indices can be wrapped with a mask.
 constexpr int32_t kRingFrames = 8192;
 
+}  // namespace
+
+// The state of an output stream.
+//
+// The header declares the type so that the C interface can pass it around
+// opaquely; the definition lives here.
 struct VimoAudio {
   std::shared_ptr<oboe::AudioStream> stream;
   std::mutex mutex;
   std::vector<float> ring;
+  // The next frame to be written and the next frame to be played, both
+  // counted in frames and wrapped to the size of the ring.
   std::atomic<int32_t> write_index{0};
   std::atomic<int32_t> read_index{0};
   int32_t channels = 2;
@@ -30,37 +41,47 @@ struct VimoAudio {
   bool running = false;
 };
 
+namespace {
+
+// The callback that drains the ring.
+//
+// It runs on a real-time thread: no locks, no allocation, no exceptions.
 class VimoCallback : public oboe::AudioStreamDataCallback {
  public:
   explicit VimoCallback(VimoAudio *owner) : owner_(owner) {}
 
-  std::atomic<int64_t> played_frames{0};
-
-  void onAudioReady(oboe::AudioStream *stream, void *audio_data,
-                    int32_t num_frames) override {
+  oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream,
+                                        void *audio_data,
+                                        int32_t num_frames) override {
     auto *out = static_cast<float *>(audio_data);
     const int32_t channels = owner_->channels;
     const int32_t mask = kRingFrames - 1;
 
-    int32_t write = owner_->write_index.load(std::memory_order_acquire);
+    const int32_t write = owner_->write_index.load(std::memory_order_acquire);
     int32_t read = owner_->read_index.load(std::memory_order_relaxed);
 
+    // How many frames are actually waiting. If the writer has lapped the
+    // reader, the oldest frames are dropped.
+    int32_t available = (write - read) & mask;
+    if (available > kRingFrames) {
+      available = 0;
+    }
+
     for (int32_t i = 0; i < num_frames; ++i) {
-      const int32_t slot = (read + i) & mask;
-      for (int32_t c = 0; c < channels; ++c) {
-        const int32_t index = (write + i * channels + c) & mask;
-        // The ring is indexed by frame; the sample layout is interleaved.
-        const int32_t source = (slot * channels + c) & (kRingFrames * channels - 1);
-        out[i * channels + c] = owner_->ring[source];
+      const int32_t frame = (read + i) & mask;
+      const float *source = &owner_->ring[static_cast<size_t>(frame) * channels];
+      float *target = &out[static_cast<size_t>(i) * channels];
+      if (i < available) {
+        std::memcpy(target, source, sizeof(float) * channels);
+      } else {
+        // The ring ran dry: play silence rather than stale audio.
+        std::memset(target, 0, sizeof(float) * channels);
       }
     }
 
     owner_->read_index.store((read + num_frames) & mask, std::memory_order_release);
-    played_frames.fetch_add(num_frames, std::memory_order_relaxed);
+    return oboe::DataCallbackResult::Continue;
   }
-
-  void onErrorAfterClose(oboe::AudioStream *stream,
-                         oboe::Result error) override {}
 
  private:
   VimoAudio *owner_;
@@ -82,17 +103,17 @@ VimoAudio *vimo_audio_create(int32_t sample_rate, int32_t channels,
   auto *audio = new VimoAudio();
   audio->channels = channels;
   audio->sample_rate = sample_rate;
-  audio->ring.assign(static_cast<size_t>(kRingFrames * channels), 0.0f);
+  audio->ring.assign(static_cast<size_t>(kRingFrames) * channels, 0.0f);
 
   oboe::AudioStreamBuilder builder;
   builder.setDirection(oboe::Direction::Output)
       ->setSharingMode(oboe::SharingMode::Exclusive)
-      ->setFormat(oboe::Format::Float)
+      ->setFormat(oboe::AudioFormat::Float)
       ->setChannelCount(channels)
       ->setSampleRate(sample_rate)
       ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
       ->setUsage(oboe::Usage::Media)
-      ->setDataCallback(new VimoCallback(audio));
+      ->setDataCallback(std::make_shared<VimoCallback>(audio));
 
   std::shared_ptr<oboe::AudioStream> stream;
   oboe::Result result = builder.openStream(stream);
@@ -147,10 +168,9 @@ int32_t vimo_audio_write(VimoAudio *audio, const float *data, int32_t frames) {
   }
   const int32_t channels = audio->channels;
   const int32_t mask = kRingFrames - 1;
-  const int32_t sample_mask = (kRingFrames * channels) - 1;
 
   std::lock_guard<std::mutex> guard(audio->mutex);
-  int32_t write = audio->write_index.load(std::memory_order_relaxed);
+  const int32_t write = audio->write_index.load(std::memory_order_relaxed);
   const int32_t read = audio->read_index.load(std::memory_order_acquire);
 
   // Only write what fits without overrunning the reader.
@@ -161,8 +181,11 @@ int32_t vimo_audio_write(VimoAudio *audio, const float *data, int32_t frames) {
   if (frames > free_frames) {
     frames = free_frames;
   }
-  for (int32_t i = 0; i < frames * channels; ++i) {
-    audio->ring[(write * channels + i) & sample_mask] = data[i];
+  for (int32_t i = 0; i < frames; ++i) {
+    const int32_t frame = (write + i) & mask;
+    float *target = &audio->ring[static_cast<size_t>(frame) * channels];
+    const float *source = &data[static_cast<size_t>(i) * channels];
+    std::memcpy(target, source, sizeof(float) * channels);
   }
   audio->write_index.store((write + frames) & mask, std::memory_order_release);
   return frames;
