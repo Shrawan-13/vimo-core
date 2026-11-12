@@ -1,0 +1,58 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/vimo-foundation",
+    "crates/vimo-project",
+    "crates/vimo-manifest",
+    "crates/vimo-render",
+    "crates/vimo-media",
+    "crates/vimo-audio",
+    "crates/vimo-resources",
+    "crates/vimo-device",
+    "crates/vimo-engine",
+    "crates/vimo-ffi",
+    "crates/vimo-bench",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/vimo-app/vimo-core"
+authors = ["Vimo Core Team"]
+
+[workspace.dependencies]
+vimo-foundation = { path = "crates/vimo-foundation" }
+vimo-project = { path = "crates/vimo-project" }
+vimo-manifest = { path = "crates/vimo-manifest" }
+vimo-render = { path = "crates/vimo-render" }
+vimo-media = { path = "crates/vimo-media" }
+vimo-audio = { path = "crates/vimo-audio" }
+vimo-resources = { path = "crates/vimo-resources" }
+vimo-device = { path = "crates/vimo-device" }
+vimo-engine = { path = "crates/vimo-engine" }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+paste = "1.0"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "unwind"
+debug = false
+
+[profile.bench]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug = true
+
+[profile.dev]
+opt-level = 1
+
+# Test profile keeps unwinding so `catch_unwind` FFI tests are meaningful.
+[profile.test]
+opt-level = 1

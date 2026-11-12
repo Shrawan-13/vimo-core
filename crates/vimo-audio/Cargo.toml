@@ -1,0 +1,15 @@
+[package]
+name = "vimo-audio"
+description = "Vimo Core audio: multi-track mixing, gain envelopes, sample-rate conversion, waveform cache and low-latency output."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+vimo-foundation = { workspace = true }
+vimo-media = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

@@ -1,0 +1,16 @@
+[package]
+name = "vimo-render"
+description = "Vimo Core render graph: frame plans, layer tables, effect uniforms, dirty tracking and a CPU reference rasteriser."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+vimo-foundation = { workspace = true }
+vimo-manifest = { workspace = true }
+vimo-project = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

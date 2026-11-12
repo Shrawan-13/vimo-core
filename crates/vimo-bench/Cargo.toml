@@ -1,0 +1,22 @@
+[package]
+name = "vimo-bench"
+description = "Benchmarks for Vimo Core with enforced performance budgets."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "vimo-bench"
+path = "src/main.rs"
+
+[dependencies]
+vimo-foundation = { workspace = true }
+vimo-manifest = { workspace = true }
+vimo-project = { workspace = true }
+vimo-render = { workspace = true }
+vimo-media = { workspace = true }
+vimo-audio = { workspace = true }
+vimo-resources = { workspace = true }
+vimo-engine = { workspace = true }

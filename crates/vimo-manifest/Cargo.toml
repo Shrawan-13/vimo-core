@@ -1,0 +1,16 @@
+[package]
+name = "vimo-manifest"
+description = "Effect manifest parsing for Vimo Core: JSON effect definitions, typed parameters and interning."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+vimo-foundation = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

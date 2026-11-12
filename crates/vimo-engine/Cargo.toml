@@ -1,0 +1,21 @@
+[package]
+name = "vimo-engine"
+description = "Vimo Core engine: session, master clock, playback, prefetching, export pipeline and the event queue."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+vimo-foundation = { workspace = true }
+vimo-manifest = { workspace = true }
+vimo-project = { workspace = true }
+vimo-render = { workspace = true }
+vimo-media = { workspace = true }
+vimo-audio = { workspace = true }
+vimo-resources = { workspace = true }
+vimo-device = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

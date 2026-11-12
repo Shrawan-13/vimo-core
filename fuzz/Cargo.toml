@@ -1,0 +1,30 @@
+[package]
+name = "vimo-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+vimo-manifest = { path = "../crates/vimo-manifest" }
+vimo-project = { path = "../crates/vimo-project" }
+
+[[bin]]
+name = "project_loader"
+path = "fuzz_targets/project_loader.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "manifest_parser"
+path = "fuzz_targets/manifest_parser.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+members = ["."]

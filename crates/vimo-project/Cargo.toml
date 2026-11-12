@@ -1,0 +1,15 @@
+[package]
+name = "vimo-project"
+description = "Vimo Core project model: clips, tracks, transitions, effect nodes, keyframes, undo/redo and the versioned file format."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+vimo-foundation = { workspace = true }
+vimo-manifest = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

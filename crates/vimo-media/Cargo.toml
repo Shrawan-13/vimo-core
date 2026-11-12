@@ -1,0 +1,14 @@
+[package]
+name = "vimo-media"
+description = "Vimo Core media I/O: decoder and encoder traits, capability detection, frame buffers, VFR handling and proxy generation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+vimo-foundation = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

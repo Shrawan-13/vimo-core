@@ -1,0 +1,23 @@
+[package]
+name = "vimo-ffi"
+description = "The Vimo Core C ABI: an opaque engine handle, commands in, events out, and a panic-proof boundary."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+name = "vimo_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+vimo-foundation = { workspace = true }
+vimo-manifest = { workspace = true }
+vimo-project = { workspace = true }
+vimo-render = { workspace = true }
+vimo-media = { workspace = true }
+vimo-audio = { workspace = true }
+vimo-resources = { workspace = true }
+vimo-device = { workspace = true }
+vimo-engine = { workspace = true }
