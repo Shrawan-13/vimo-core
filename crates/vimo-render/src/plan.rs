@@ -8,16 +8,30 @@
 use vimo_foundation::color::Rgba8;
 use vimo_foundation::math::{Mat3, Rect};
 use vimo_foundation::time::Time;
+use vimo_manifest::EffectTypeId;
+
+use crate::uniforms::{BuiltinUniforms, UniformArena, UniformRange};
 
 /// Index of a layer inside a [`crate::graph::LayerTable`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct LayerIndex(pub u32);
 
-/// Index of an effect inside a layer's effect chain.
+/// Index of an effect inside a frame plan's effect table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct EffectIndex(pub u32);
+
+/// One effect instance within a frame plan.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FrameEffect {
+    /// The effect type (an index into the effect registry).
+    pub effect_type: EffectTypeId,
+    /// The built-in uniforms for this effect.
+    pub builtins: BuiltinUniforms,
+    /// Where the effect's parameter values live in the plan's arena.
+    pub range: UniformRange,
+}
 
 /// A handle to a texture that the renderer must bind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -55,6 +69,18 @@ impl TextureRef {
     pub const fn unresolved(clip: vimo_project::model::ClipId, source_time: Time) -> Self {
         TextureRef { clip, source_time, texture: TextureId::NONE }
     }
+}
+
+/// Resolves a picture request into a GPU texture.
+///
+/// The engine owns the resolver; the platform implements it by asking the
+/// decoder (and the frame cache) for the picture.
+pub trait TextureResolver {
+    /// The texture showing the requested picture.
+    ///
+    /// Returning [`TextureId::NONE`] means the picture is not available (yet),
+    /// and the renderer should skip the layer.
+    fn resolve(&mut self, request: &TextureRef) -> TextureId;
 }
 
 /// One drawing operation.
@@ -127,6 +153,10 @@ pub struct FramePlan {
     pub steps: Vec<DrawStep>,
     /// The number of layers that contributed to this plan.
     pub layer_count: u32,
+    /// The effects used by this frame.
+    pub effects: Vec<FrameEffect>,
+    /// The uniform values for this frame's effects.
+    pub uniforms: UniformArena,
 }
 
 impl FramePlan {
@@ -144,6 +174,8 @@ impl FramePlan {
         self.scale = scale;
         self.preview = preview;
         self.steps.clear();
+        self.effects.clear();
+        self.uniforms.clear();
         self.layer_count = 0;
     }
 

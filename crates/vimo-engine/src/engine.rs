@@ -23,13 +23,15 @@ use vimo_foundation::error::{invalid_state, VimoResult};
 use vimo_foundation::time::Time;
 use vimo_manifest::EffectRegistry;
 use vimo_project::{Command, History, Project};
-use vimo_render::{FramePlan, RenderGraph};
+use vimo_render::{FramePlan, RenderGraph, TextureResolver};
 use vimo_foundation::map::FxHashMap;
 use vimo_resources::{FrameCache, FrameKey, MemoryTracker, PressureLevel};
 
 use crate::clock::{MasterClock, PlaybackState, TimeSource};
 use crate::export::{ExportPipeline, ExportPreset, ExportProgress, ExportState};
+use crate::files::SessionFiles;
 use crate::prefetch::{ActiveSource, Prefetcher};
+use crate::render_thread::RenderThread;
 
 /// An event emitted by the engine.
 #[derive(Debug, Clone, PartialEq)]
@@ -64,6 +66,11 @@ pub enum EngineEvent {
         code: i32,
         /// A human readable description.
         message: String,
+    },
+    /// A JSON snapshot of the project is available.
+    Snapshot {
+        /// The snapshot, as JSON.
+        json: String,
     },
 }
 
@@ -109,6 +116,14 @@ pub struct Engine {
     export: Option<ExportPipeline>,
     /// Whether the project has unsaved changes.
     dirty: bool,
+    /// The file services (load, save, autosave).
+    files: SessionFiles,
+    /// Resolves the pictures a plan refers to into GPU textures.
+    resolver: Option<Box<dyn TextureResolver>>,
+    /// The plan shared with the render thread.
+    render_plan: std::sync::Arc<std::sync::Mutex<FramePlan>>,
+    /// The render thread, if one is attached.
+    render_thread: Option<RenderThread>,
 }
 
 impl Engine {
@@ -150,6 +165,10 @@ impl Engine {
             frame_duration,
             export: None,
             dirty: false,
+            files: SessionFiles::new(),
+            resolver: None,
+            render_plan: std::sync::Arc::new(std::sync::Mutex::new(FramePlan::new())),
+            render_thread: None,
         };
         engine.intern_sources();
         engine
@@ -159,6 +178,27 @@ impl Engine {
     #[must_use]
     pub fn project(&self) -> &Project {
         &self.project
+    }
+
+    /// The project, mutably.
+    ///
+    /// Mutating the project invalidates the layer table, so the next frame
+    /// rebuilds it.
+    #[must_use]
+    pub fn project_mut(&mut self) -> &mut Project {
+        self.graph.invalidate();
+        &mut self.project
+    }
+
+    /// Mark the project as changed without touching its data.
+    ///
+    /// Used when the project metadata (name, resolution, frame rate) was
+    /// edited directly.
+    pub fn invalidate_project(&mut self) {
+        self.dirty = true;
+        self.sync_graph();
+        let revision = self.project.revision;
+        self.events.push_back(EngineEvent::ProjectChanged { revision });
     }
 
     /// The render graph.
@@ -371,7 +411,8 @@ impl Engine {
         self.graph.set_resolution(self.project.meta.width, self.project.meta.height);
         self.graph.set_preview_scale(self.quality.preview_scale);
         self.graph.set_preview_mode(true);
-        let _ = self.graph.frame_at(render_time)?;
+        self.graph.frame_at(render_time)?;
+        resolve_textures(&mut self.resolver, self.graph.plan_mut());
         self.stats.frames_rendered += 1;
         self.events.push_back(EngineEvent::FrameRendered { time: render_time, reused });
         Ok(self.graph.plan())
@@ -492,16 +533,72 @@ impl Engine {
     }
 
     /// Start an export.
-    pub fn start_export(
-        &mut self,
-        preset: ExportPreset,
-        encoder: Box<dyn vimo_media::Encoder>,
-    ) -> VimoResult<()> {
+    ///
+    /// The engine owns the *timing*: it decides which frame comes next and
+    /// builds the plan for it. The platform owns the encoding: it draws the
+    /// plan with its own renderer and feeds the pixels to its encoder. That
+    /// split keeps the codec (which differs per device) in the platform layer
+    /// while the core keeps the frame numbering deterministic.
+    pub fn start_export(&mut self, preset: ExportPreset) -> VimoResult<()> {
         let duration = self.project.duration();
         let mut pipeline = ExportPipeline::new(preset, duration)?;
-        pipeline.start(encoder)?;
+        pipeline.begin()?;
         self.export = Some(pipeline);
         Ok(())
+    }
+
+    /// The time of the next frame the export needs, if any.
+    ///
+    /// The engine builds the plan for that frame into the shared render plan,
+    /// so the platform can draw it.
+    pub fn export_next_frame(&mut self) -> VimoResult<Option<Time>> {
+        let Some(pipeline) = &self.export else {
+            return Ok(None);
+        };
+        if pipeline.state() != ExportState::Running {
+            return Ok(None);
+        }
+        let frame = pipeline.frame();
+        let time = pipeline.time_of_frame(frame);
+        {
+            let mut guard = match self.render_plan.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            self.graph.set_resolution(pipeline.preset().width, pipeline.preset().height);
+            self.graph.set_preview_scale(1.0);
+            self.graph.set_preview_mode(false);
+            self.graph.frame_at_into(time, &mut guard)?;
+            resolve_textures(&mut self.resolver, &mut guard);
+        }
+        Ok(Some(time))
+    }
+
+    /// Mark the frame the export just produced as done.
+    pub fn export_frame_done(&mut self) -> VimoResult<ExportProgress> {
+        let Some(pipeline) = &mut self.export else {
+            return Err(vimo_foundation::error::invalid_state("export: not running"));
+        };
+        pipeline.complete_frame();
+        let progress = pipeline.progress();
+        if progress.state == ExportState::Completed {
+            self.events.push_back(EngineEvent::ExportFinished(ExportState::Completed));
+        }
+        Ok(progress)
+    }
+
+    /// Pause the export.
+    pub fn pause_export(&mut self) {
+        if let Some(pipeline) = &mut self.export {
+            pipeline.pause();
+        }
+    }
+
+    /// Resume a paused export.
+    pub fn resume_export(&mut self) {
+        if let Some(pipeline) = &mut self.export {
+            pipeline.resume_paused();
+        }
     }
 
     /// The export pipeline.
@@ -554,6 +651,123 @@ impl Engine {
     #[must_use]
     pub fn frame_duration(&self) -> Time {
         self.frame_duration
+    }
+
+    // --- files ------------------------------------------------------------
+
+    /// The file services.
+    #[must_use]
+    pub fn files(&self) -> &SessionFiles {
+        &self.files
+    }
+
+    /// The file services, mutably.
+    #[must_use]
+    pub fn files_mut(&mut self) -> &mut SessionFiles {
+        &mut self.files
+    }
+
+    /// A JSON snapshot of the project, for the UI.
+    #[must_use]
+    pub fn snapshot_json(&self) -> String {
+        crate::files::project_snapshot(&self.project)
+    }
+
+    /// Load a project from a file, replacing the current one.
+    pub fn load_project(&mut self, path: &std::path::Path) -> VimoResult<()> {
+        let (project, report) = SessionFiles::load(path, &self.registry)?;
+        if !report.dropped_effects.is_empty() {
+            self.events.push_back(EngineEvent::Error {
+                code: vimo_foundation::ErrorKind::Unsupported.code(),
+                message: format!(
+                    "the project uses {} effect(s) that this build does not have",
+                    report.dropped_effects.len()
+                ),
+            });
+        }
+        self.replace_project(project);
+        Ok(())
+    }
+
+    /// Save the project to a file.
+    pub fn save_project(&mut self, path: &std::path::Path) -> VimoResult<()> {
+        self.files.save(&self.project, &self.registry, path)?;
+        self.mark_saved();
+        Ok(())
+    }
+
+    /// Write an autosave snapshot.
+    pub fn autosave(&mut self) -> VimoResult<std::path::PathBuf> {
+        self.files.autosave(&self.project, &self.registry)
+    }
+
+    /// Recover the newest autosave, if there is one.
+    pub fn recover_autosave(&mut self) -> VimoResult<bool> {
+        let Some(project) = self.files.recover(&self.registry)? else {
+            return Ok(false);
+        };
+        self.replace_project(project);
+        Ok(true)
+    }
+
+    // --- rendering --------------------------------------------------------
+
+    /// Attach the resolver that turns pictures into GPU textures.
+    pub fn set_texture_resolver(&mut self, resolver: Box<dyn TextureResolver>) {
+        self.resolver = Some(resolver);
+    }
+
+    /// Attach the render thread that draws the frames.
+    pub fn attach_render_thread(&mut self, thread: RenderThread) {
+        self.render_thread = Some(thread);
+    }
+
+    /// The render thread, if one is attached.
+    #[must_use]
+    pub fn render_thread(&self) -> Option<&RenderThread> {
+        self.render_thread.as_ref()
+    }
+
+    /// Build the frame at the playhead and hand it to the render thread.
+    ///
+    /// This is what the app calls from its render loop: no GL calls cross the
+    /// FFI boundary, and the plan is built on the calling thread while the
+    /// previous frame is still being drawn.
+    pub fn render_to_surface(&mut self) -> VimoResult<()> {
+        let time = self.clock.tick();
+        self.events.push_back(EngineEvent::PositionChanged(time));
+        {
+            let mut guard = match self.render_plan.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            self.graph.frame_at_into(time, &mut guard)?;
+            resolve_textures(&mut self.resolver, &mut guard);
+        }
+        if let Some(thread) = &self.render_thread {
+            thread.render(time, self.render_plan.clone())?;
+        }
+        self.stats.frames_rendered += 1;
+        Ok(())
+    }
+}
+
+/// Fill the texture handles of a plan.
+fn resolve_textures(resolver: &mut Option<Box<dyn TextureResolver>>, plan: &mut FramePlan) {
+    let Some(resolver) = resolver.as_deref_mut() else {
+        return;
+    };
+    for step in &mut plan.steps {
+        match step {
+            vimo_render::DrawStep::Composite { source, .. } => {
+                source.texture = resolver.resolve(source);
+            }
+            vimo_render::DrawStep::Transition { from_source, to_source, .. } => {
+                from_source.texture = resolver.resolve(from_source);
+                to_source.texture = resolver.resolve(to_source);
+            }
+            vimo_render::DrawStep::Clear { .. } => {}
+        }
     }
 }
 

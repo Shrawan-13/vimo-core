@@ -27,10 +27,15 @@ pub mod software;
 pub mod uniforms;
 
 pub use graph::{source_time_for, GraphStats, RenderGraph};
-pub use plan::{DrawStep, EffectIndex, FramePlan, LayerIndex, TextureId, TextureRef};
+pub use plan::{
+    DrawStep, EffectIndex, FrameEffect, FramePlan, LayerIndex, TextureId, TextureRef,
+    TextureResolver,
+};
 pub use shader::{
     parse_uniforms, validate_uniforms, GlType, NullShaderProvider, ProgramId,
     ShaderProvider, ShaderUniform, UniformMismatch,
 };
 pub use software::{diff, execute, FrameBuffer, FrameProvider, FrameView};
-pub use uniforms::{write_param, UniformBlock};
+pub use uniforms::{
+    write_param, BuiltinUniforms, UniformArena, UniformBlock, UniformRange,
+};

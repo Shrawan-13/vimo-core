@@ -5,6 +5,7 @@ members = [
     "crates/vimo-project",
     "crates/vimo-manifest",
     "crates/vimo-render",
+    "crates/vimo-gl",
     "crates/vimo-media",
     "crates/vimo-audio",
     "crates/vimo-resources",
@@ -27,6 +28,7 @@ vimo-foundation = { path = "crates/vimo-foundation" }
 vimo-project = { path = "crates/vimo-project" }
 vimo-manifest = { path = "crates/vimo-manifest" }
 vimo-render = { path = "crates/vimo-render" }
+vimo-gl = { path = "crates/vimo-gl" }
 vimo-media = { path = "crates/vimo-media" }
 vimo-audio = { path = "crates/vimo-audio" }
 vimo-resources = { path = "crates/vimo-resources" }

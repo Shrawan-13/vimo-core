@@ -126,6 +126,7 @@ dependencies = [
 name = "vimo-engine"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "vimo-audio",
  "vimo-device",
  "vimo-foundation",
@@ -156,6 +157,16 @@ name = "vimo-foundation"
 version = "0.1.0"
 
 [[package]]
+name = "vimo-gl"
+version = "0.1.0"
+dependencies = [
+ "vimo-foundation",
+ "vimo-manifest",
+ "vimo-project",
+ "vimo-render",
+]
+
+[[package]]
 name = "vimo-manifest"
 version = "0.1.0"
 dependencies = [
@@ -175,6 +186,7 @@ dependencies = [
 name = "vimo-project"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "vimo-foundation",
  "vimo-manifest",
 ]

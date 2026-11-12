@@ -35,6 +35,10 @@ pub enum GlType {
     Bool,
     /// `sampler2D`
     Sampler2D,
+    /// `mat3` (a column-major 3x3 matrix).
+    Mat3,
+    /// `mat4` (a column-major 4x4 matrix).
+    Mat4,
 }
 
 impl GlType {
@@ -49,6 +53,8 @@ impl GlType {
             GlType::Int => "int",
             GlType::Bool => "bool",
             GlType::Sampler2D => "sampler2D",
+            GlType::Mat3 => "mat3",
+            GlType::Mat4 => "mat4",
         }
     }
 
@@ -60,6 +66,8 @@ impl GlType {
             GlType::Vec2 => 2,
             GlType::Vec3 => 3,
             GlType::Vec4 => 4,
+            GlType::Mat3 => 9,
+            GlType::Mat4 => 16,
         }
     }
 
@@ -74,6 +82,8 @@ impl GlType {
             "int" => GlType::Int,
             "bool" => GlType::Bool,
             "sampler2D" => GlType::Sampler2D,
+            "mat3" => GlType::Mat3,
+            "mat4" => GlType::Mat4,
             _ => return None,
         })
     }
@@ -88,7 +98,7 @@ impl GlType {
             GlType::Vec4 => ParamType::Color,
             GlType::Int => ParamType::Int,
             GlType::Bool => ParamType::Bool,
-            GlType::Sampler2D => return None,
+            GlType::Sampler2D | GlType::Mat3 | GlType::Mat4 => return None,
         })
     }
 }

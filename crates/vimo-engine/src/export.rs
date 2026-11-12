@@ -229,6 +229,27 @@ impl ExportPipeline {
         Ok(())
     }
 
+    /// Start the export without an encoder.
+    ///
+    /// The platform may own the encoder instead (it is the layer that knows
+    /// about the device's codecs); the engine then only drives the timing.
+    pub fn begin(&mut self) -> VimoResult<()> {
+        self.preset.validate()?;
+        self.encoder = None;
+        self.frame = 0;
+        self.chunks = 0;
+        self.state = ExportState::Running;
+        Ok(())
+    }
+
+    /// Mark the current frame as encoded.
+    pub fn complete_frame(&mut self) {
+        self.frame += 1;
+        if self.frame >= self.total_frames {
+            let _ = self.finish();
+        }
+    }
+
     /// Resume an export from a checkpoint.
     ///
     /// The encoder must already hold the data up to `frame`.
@@ -301,10 +322,7 @@ impl ExportPipeline {
             self.chunks += chunks.len() as u64;
         }
 
-        self.frame += 1;
-        if self.frame >= self.total_frames {
-            self.finish()?;
-        }
+        self.complete_frame();
         Ok(self.progress())
     }
 

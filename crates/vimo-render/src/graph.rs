@@ -28,15 +28,15 @@
 //!    only animated effects are re-evaluated every frame.
 
 use vimo_foundation::error::VimoResult;
-use vimo_foundation::math::{Mat3, Rect, Vec2};
+use vimo_foundation::math::{Mat3, Rect};
 use vimo_foundation::time::Time;
 use vimo_manifest::{EffectRegistry, EffectTypeId, ParamValue};
 use vimo_project::model::{BlendMode, ClipId, TransitionKind};
 use vimo_project::Project;
 
-use crate::plan::{DrawStep, EffectIndex, FramePlan, LayerIndex, TextureRef};
+use crate::plan::{DrawStep, EffectIndex, FrameEffect, FramePlan, LayerIndex, TextureRef};
 use crate::shader::ShaderProvider;
-use crate::uniforms::{write_param, UniformBlock};
+use crate::uniforms::{write_param, BuiltinUniforms, UniformBlock};
 
 /// Statistics about the graph's work, useful for benchmarks and telemetry.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -335,6 +335,14 @@ impl RenderGraph {
         &self.plan
     }
 
+    /// The current plan, mutably.
+    ///
+    /// The renderer uses this to fill in the resolved texture handles.
+    #[must_use]
+    pub fn plan_mut(&mut self) -> &mut FramePlan {
+        &mut self.plan
+    }
+
     /// Build the frame at `time` and return the plan.
     pub fn frame_at(&mut self, time: Time) -> VimoResult<&FramePlan> {
         self.build(time)?;
@@ -445,11 +453,23 @@ impl RenderGraph {
         let local_time = time - self.project.clips[slot.clip as usize].timeline.start;
         self.refresh_effects(slot.clip, local_time)?;
 
+        // Copy the effect uniforms into the plan's arena so that the plan is
+        // self-contained and can be drawn on another thread.
+        let mut effects = Vec::new();
+        for slot in &self.states[state_index].effects {
+            let range = self.plan.uniforms.push_block(&slot.uniforms);
+            let index = self.plan.effects.len() as u32;
+            self.plan.effects.push(FrameEffect {
+                effect_type: slot.effect_type,
+                builtins: slot.uniforms.builtins,
+                range,
+            });
+            effects.push(EffectIndex(index));
+        }
+        let effects = effects;
+
         let clip = &self.project.clips[slot.clip as usize];
         let source_time = source_time_for(clip, time);
-        let effects: Vec<EffectIndex> = (0..self.states[state_index].effects.len() as u32)
-            .map(EffectIndex)
-            .collect();
 
         self.plan.steps.push(DrawStep::Composite {
             layer: layer_index,
@@ -487,15 +507,22 @@ impl RenderGraph {
         let to_source = TextureRef::unresolved(tr.to_clip, source_time_for(to, time));
         let transform = to.transform.to_matrix();
 
-        let mut effects = Vec::new();
         // A transition may carry its own effect chain in the future; for now it
         // inherits the incoming clip's chain so that the transition honours the
         // same look as the clip it leads into.
         let local = time - to.timeline.start;
         self.refresh_effects(tr.to_clip, local)?;
         let state_index = tr.to_clip as usize;
-        for i in 0..self.states[state_index].effects.len() as u32 {
-            effects.push(EffectIndex(i));
+        let mut effects = Vec::new();
+        for slot in &self.states[state_index].effects {
+            let range = self.plan.uniforms.push_block(&slot.uniforms);
+            let index = self.plan.effects.len() as u32;
+            self.plan.effects.push(FrameEffect {
+                effect_type: slot.effect_type,
+                builtins: slot.uniforms.builtins,
+                range,
+            });
+            effects.push(EffectIndex(index));
         }
 
         self.plan.steps.push(DrawStep::Transition {
@@ -591,11 +618,12 @@ fn build_effect_uniforms(
     height: f32,
 ) {
     slot.uniforms.clear();
-    // Built-in uniforms.
-    slot.uniforms.push_float(local_time.as_secs_f64() as f32);
-    slot.uniforms.push_vec2(Vec2::new(width, height));
-    slot.uniforms.push_vec2(Vec2::new(1.0 / width.max(1.0), 1.0 / height.max(1.0)));
-    slot.uniforms.push_float(1.0);
+    slot.uniforms.builtins = BuiltinUniforms {
+        time: local_time.as_secs_f64() as f32,
+        resolution: [width, height],
+        texel: [1.0 / width.max(1.0), 1.0 / height.max(1.0)],
+        opacity: 1.0,
+    };
 
     let Some(desc) = desc else {
         return;

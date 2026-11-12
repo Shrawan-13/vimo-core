@@ -31,25 +31,32 @@ testable and has no knowledge of the layer above it.
         │ uniforms       │ │history, │ │               │
         └────┬───────────┘ │ file    │ └───────┬───────┘
              │             │ format  │         │
-        ┌────▼─────────────▼──┐ ┌────▼──────┐ ┌▼───────────┐
-        │ vimo-manifest        │ │vimo-media │ │vimo-device │
-        │ JSON effect defs     │ │decoders,  │ │tiers,      │
-        │ typed parameters     │ │encoders,  │ │thermal     │
-        └──────────────────────┘ │VFR, proxy │ └────────────┘
-                                └─────┬─────┘
-                                      │
-                              ┌───────▼────────┐
-                              │ vimo-foundation │  time, ids, errors,
-                              │                 │  math, containers
-                              └─────────────────┘
+             │        ┌────▼─────────▼──┐      │
+             │        │ vimo-manifest    │      │
+             │        │ JSON effect defs │      │
+             │        │ typed parameters │      │
+             │        └────────┬─────────┘      │
+        ┌────▼─────────────────▼──┐ ┌──────────▼──┐
+        │ vimo-gl                  │ │vimo-device │
+        │ the OpenGL ES renderer   │ │tiers,      │
+        │ behind the `GlApi` trait │ │thermal     │
+        └────────────┬─────────────┘ └─────────────┘
+                     │
+              ┌──────▼─────┐ ┌────▼──────┐ ┌▼───────────┐
+              │ vimo-media │ │vimo-audio │ │vimo-      │
+              │ decoders,  │ │mixing,    │ │foundation │
+              │ encoders,  │ │fades, SRC │ │time, ids, │
+              │ VFR, proxy │ │waveforms  │ │errors     │
+              └────────────┘ └───────────┘ └────────────┘
 ```
 
 | Crate | Responsibility |
 |-------|----------------|
 | `vimo-foundation` | Zero-dependency primitives: exact time, ids, errors, math, containers, tracing. `unsafe` is forbidden. |
 | `vimo-manifest` | Parsing and validating effect manifests (JSON): typed parameters, defaults, interning. |
-| `vimo-project` | The project model, the command system, undo/redo, the versioned file format and migrations, autosave. |
-| `vimo-render` | The render graph: layer tables, frame plans, effect uniforms, dirty tracking, a CPU reference rasteriser. |
+| `vimo-project` | The project model, the command system, undo/redo, the versioned file format and migrations, autosave, the JSON snapshot for the UI. |
+| `vimo-render` | The render graph: layer tables, frame plans, effect uniforms, dirty tracking, a CPU reference rasteriser, GLSL introspection. |
+| `vimo-gl` | The portable OpenGL ES renderer behind the `GlApi` trait, plus a mock that records every call. |
 | `vimo-media` | Decoder/encoder traits, capability detection, frame buffers, VFR tables, rotation metadata, proxy scheduling, the zero-copy surface contract. |
 | `vimo-audio` | Mixing, gain envelopes, fades, sample-rate conversion, waveform caching, the low-latency output trait. |
 | `vimo-resources` | Decoder/texture/buffer pools, the LRU frame cache, memory accounting and pressure handling. |
@@ -147,6 +154,11 @@ GLSL source and checks that the shader's uniforms match the manifest's
 parameters (at load time, not at draw time); `software.rs` is the CPU
 reference rasteriser used by the golden tests.
 
+`vimo-gl` turns a plan into GL calls. It talks to the `GlApi` trait rather
+than to OpenGL, so the renderer — where the bugs live — is tested on a
+desktop CI with `MockGl`, which records every call. The Android layer
+implements `GlApi` on top of the NDK's GLES3.
+
 ### [3] Media I/O
 `vimo-media/src/decoder.rs` defines the decoder/encoder traits and ships
 software implementations for tests. `capability.rs` detects what the device
@@ -189,6 +201,11 @@ progress, cancel, pause and resume from a checkpoint.
 handle, commands in, events out, `catch_unwind` on every entry point, the
 surface handed over once.
 
+The command set covers the whole editor: playback, clips (add, remove, move,
+trim, split), tracks, effects, keyframes, assets, transitions, the project
+settings, the files and the export. The UI reads the project through
+`vimo_engine_snapshot`, which returns a JSON view of the timeline.
+
 ### [10] Engineering
 - Dedicated render thread: `vimo-engine/src/render_thread.rs` — the GL context
   belongs to that thread and never crosses a thread boundary.
@@ -197,9 +214,11 @@ surface handed over once.
   off.
 - Errors: `vimo-foundation/src/error.rs` — a closed enum with stable numeric
   codes.
-- Tests: 213 unit tests, 4 golden-frame tests with image diffs
-  (`crates/vimo-render/tests/golden.rs`), and deterministic fuzz-style tests
-  for the project loader and the manifest parser.
+- Tests: 250 unit tests, 4 golden-frame tests with image diffs
+  (`crates/vimo-render/tests/golden.rs`), 9 renderer tests that assert the
+  exact GL calls through the mock (`crates/vimo-gl/tests/renderer.rs`), and
+  deterministic fuzz-style tests for the project loader and the manifest
+  parser.
 - Fuzzing: `fuzz/` contains `cargo-fuzz` targets for the project loader and
   the manifest parser.
 
@@ -209,7 +228,7 @@ surface handed over once.
 
 ```sh
 cargo build --workspace          # build everything
-cargo test  --workspace          # 213 tests
+cargo test  --workspace          # 250 tests
 cargo run  --release -p vimo-bench   # benchmarks with enforced budgets
 cargo +nightly fuzz run project_loader
 ```
@@ -253,3 +272,8 @@ port it to a platform, implement:
 | `RenderContext` | `vimo-engine` | draw a frame plan (owns the GL context) |
 | `TraceSink` | `vimo-foundation` | emit Perfetto spans |
 | `DeviceProbe` | `vimo-device` | report the device tier |
+| `GlApi` | `vimo-gl` | the OpenGL ES calls the renderer makes |
+
+The Android implementations live in a separate repository
+(`Shrawan-13/vimo-android`), so the core's CI stays fast and does not need
+the NDK.

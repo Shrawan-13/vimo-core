@@ -3,8 +3,8 @@
 //! # Contract
 //!
 //! * The engine is an **opaque handle**. The caller never sees the Rust types.
-//! * **Commands in, events out.** The UI never calls into the engine to ask
-//!   questions; it sends commands and receives events.
+//! * **Commands in, events out.** The UI sends commands and receives events;
+//!   it reads the project through [`vimo_engine_snapshot`].
 //! * **Every entry point is panic proof.** A Rust panic that reaches the
 //!   boundary is caught and turned into an error code instead of unwinding
 //!   into the JVM.
@@ -25,12 +25,19 @@ use std::sync::Mutex;
 use vimo_device::DeviceProfile;
 use vimo_engine::clock::MonotonicClock;
 use vimo_engine::{Engine, EngineEvent, ExportPreset};
-use vimo_foundation::time::Time;
+use vimo_foundation::error::ErrorKind;
+use vimo_foundation::math::Vec2;
+use vimo_foundation::time::{Time, TimeRange};
 use vimo_manifest::EffectRegistry;
+use vimo_project::anim::{Interpolation, Keyframe};
+use vimo_project::model::{
+    Asset, BlendMode, Clip, EffectNode, EffectOwner, Track, TrackKind, Transform, Transition,
+};
 use vimo_project::Project;
+use vimo_render::uniforms::uniform_name;
 
 /// The version of the ABI. The Kotlin side checks it at load time.
-pub const VIMO_ABI_VERSION: u32 = 1;
+pub const VIMO_ABI_VERSION: u32 = 2;
 
 /// Status codes returned by every entry point.
 pub mod status {
@@ -74,7 +81,7 @@ pub mod command_tag {
     pub const LOAD_PROJECT: u32 = 11;
     /// Save the project to a path (`text`).
     pub const SAVE_PROJECT: u32 = 12;
-    /// Start an export with the preset in `a` (0 = 1080p, 1 = 720p, 2 = 4K).
+    /// Start an export with the preset in `a`.
     pub const START_EXPORT: u32 = 13;
     /// Cancel the running export.
     pub const CANCEL_EXPORT: u32 = 14;
@@ -82,10 +89,82 @@ pub mod command_tag {
     pub const SET_SURFACE: u32 = 15;
     /// Report a thermal reading (`a` = state).
     pub const THERMAL: u32 = 16;
-    /// Report memory usage (`a` = used bytes, `b` = budget bytes).
+    /// Report memory usage.
     pub const MEMORY: u32 = 17;
     /// Set the preview scale (`a` = scale times 1000).
     pub const SET_PREVIEW_SCALE: u32 = 18;
+    /// Move a clip (`a` = clip, `b` = track, `c` = new start in nanoseconds).
+    pub const MOVE_CLIP: u32 = 19;
+    /// Trim a clip (`a` = clip, `b` = new start ns, `c` = new end ns).
+    pub const TRIM_CLIP: u32 = 20;
+    /// Split a clip at a time (`a` = clip, `b` = time in nanoseconds).
+    pub const SPLIT_CLIP: u32 = 21;
+    /// Enable or disable a clip (`a` = clip, `b` = 0/1).
+    pub const SET_CLIP_ENABLED: u32 = 22;
+    /// Set a clip's opacity (`a` = clip, `b` = float bits).
+    pub const SET_CLIP_OPACITY: u32 = 23;
+    /// Set a clip's blend mode (`a` = clip, `b` = blend mode).
+    pub const SET_CLIP_BLEND: u32 = 24;
+    /// Set a clip's transform (`a` = clip, `floats` = 8 values).
+    pub const SET_CLIP_TRANSFORM: u32 = 25;
+    /// Set a clip's volume (`a` = clip, `b` = float bits).
+    pub const SET_CLIP_VOLUME: u32 = 26;
+    /// Set a clip's speed (`a` = clip, `b` = float bits).
+    pub const SET_CLIP_SPEED: u32 = 27;
+    /// Mute or unmute a clip (`a` = clip, `b` = 0/1).
+    pub const SET_CLIP_MUTED: u32 = 28;
+    /// Add a track (`a` = kind, `b` = 0/1 audio).
+    pub const ADD_TRACK: u32 = 29;
+    /// Remove a track (`a` = track).
+    pub const REMOVE_TRACK: u32 = 30;
+    /// Enable or disable a track (`a` = track, `b` = 0/1).
+    pub const SET_TRACK_ENABLED: u32 = 31;
+    /// Mute or unmute a track (`a` = track, `b` = 0/1).
+    pub const SET_TRACK_MUTED: u32 = 32;
+    /// Solo or unsolo a track (`a` = track, `b` = 0/1).
+    pub const SET_TRACK_SOLO: u32 = 33;
+    /// Lock or unlock a track (`a` = track, `b` = 0/1).
+    pub const SET_TRACK_LOCKED: u32 = 34;
+    /// Set a track's volume (`a` = track, `b` = float bits).
+    pub const SET_TRACK_VOLUME: u32 = 35;
+    /// Add an effect (`a` = owner kind, `b` = owner, `c` = effect type).
+    pub const ADD_EFFECT: u32 = 36;
+    /// Remove an effect (`a` = owner kind, `b` = owner, `c` = effect).
+    pub const REMOVE_EFFECT: u32 = 37;
+    /// Enable or disable an effect (`a` = effect, `b` = 0/1).
+    pub const SET_EFFECT_ENABLED: u32 = 38;
+    /// Add a keyframe (`a` = effect, `b` = track, `c` = time ns, `floats[0]` = value).
+    pub const ADD_KEYFRAME: u32 = 39;
+    /// Remove a keyframe (`a` = effect, `b` = track, `c` = index).
+    pub const REMOVE_KEYFRAME: u32 = 40;
+    /// Set a keyframe's interpolation (`a` = effect, `b` = track, `c` = index).
+    pub const SET_KEYFRAME_INTERPOLATION: u32 = 41;
+    /// Add an asset (`text` = source id, `floats[0..2]` = duration and width).
+    pub const ADD_ASSET: u32 = 42;
+    /// Remove an asset (`a` = asset).
+    pub const REMOVE_ASSET: u32 = 43;
+    /// Add a transition (`a` = track, `b` = from clip, `c` = to clip).
+    pub const ADD_TRANSITION: u32 = 44;
+    /// Remove a transition (`a` = transition).
+    pub const REMOVE_TRANSITION: u32 = 45;
+    /// Set the project name (`text`).
+    pub const SET_PROJECT_NAME: u32 = 46;
+    /// Set the resolution (`a` = width, `b` = height).
+    pub const SET_RESOLUTION: u32 = 47;
+    /// Set the frame rate (`a` = numerator, `b` = denominator).
+    pub const SET_FPS: u32 = 48;
+    /// Set the autosave directory (`text`).
+    pub const SET_AUTOSAVE_DIR: u32 = 49;
+    /// Recover the newest autosave.
+    pub const RECOVER_AUTOSAVE: u32 = 50;
+    /// Set the loop range (`a` = start ns, `b` = end ns, `c` = 1 to enable).
+    pub const SET_LOOP: u32 = 51;
+    /// Pause the export.
+    pub const EXPORT_PAUSE: u32 = 52;
+    /// Resume the export.
+    pub const EXPORT_RESUME: u32 = 53;
+    /// Ask the engine to emit a snapshot event.
+    pub const REQUEST_SNAPSHOT: u32 = 54;
 }
 
 /// Event tags. **Never renumber an existing tag.**
@@ -94,7 +173,7 @@ pub mod event_tag {
     pub const PROJECT_CHANGED: u32 = 1;
     /// The playback state changed.
     pub const PLAYBACK_STATE: u32 = 2;
-    /// The playhead moved (`a` = nanoseconds).
+    /// The playhead moved.
     pub const POSITION: u32 = 3;
     /// A frame was rendered.
     pub const FRAME_RENDERED: u32 = 4;
@@ -108,6 +187,8 @@ pub mod event_tag {
     pub const EXPORT_FINISHED: u32 = 8;
     /// An error occurred (`code` and `message`).
     pub const ERROR: u32 = 9;
+    /// A project snapshot is available in the message.
+    pub const SNAPSHOT: u32 = 10;
 }
 
 /// Engine configuration.
@@ -148,11 +229,24 @@ pub struct VimoCommand {
     pub text: *const u8,
     /// The length of `text` in bytes.
     pub text_len: u32,
+    /// Optional parameter array.
+    pub floats: *const f32,
+    /// The number of floats.
+    pub float_count: u32,
 }
 
 impl Default for VimoCommand {
     fn default() -> Self {
-        VimoCommand { tag: 0, a: 0, b: 0, c: 0, text: std::ptr::null(), text_len: 0 }
+        VimoCommand {
+            tag: 0,
+            a: 0,
+            b: 0,
+            c: 0,
+            text: std::ptr::null(),
+            text_len: 0,
+            floats: std::ptr::null(),
+            float_count: 0,
+        }
     }
 }
 
@@ -258,13 +352,12 @@ pub unsafe extern "C" fn vimo_engine_create(config: *const VimoConfig) -> *mut V
         // SAFETY: the caller guarantees the pointer is valid for the call.
         let cfg = unsafe { *config };
         let profile = DeviceProfile::default();
-        let engine = Engine::open(
+        let mut engine = Engine::open(
             Project::new(),
             EffectRegistry::new(),
             profile,
             std::sync::Arc::new(MonotonicClock::new()),
         );
-        let mut engine = engine;
         engine.set_resolution(cfg.width, cfg.height);
         Ok(Box::into_raw(Box::new(VimoEngine {
             inner: Mutex::new(engine),
@@ -429,6 +522,46 @@ pub unsafe extern "C" fn vimo_engine_stats(engine: *mut VimoEngine, out: *mut Vi
     })
 }
 
+/// Write a JSON snapshot of the project into `out`.
+///
+/// Returns the number of bytes written. When the buffer is too small the
+/// required size is returned instead, so the caller can allocate and retry.
+///
+/// # Safety
+/// `engine` must be a valid handle and `out` must point to `capacity` writable
+/// bytes.
+#[no_mangle]
+pub unsafe extern "C" fn vimo_engine_snapshot(
+    engine: *mut VimoEngine,
+    out: *mut u8,
+    capacity: i32,
+) -> i32 {
+    guard_value(|| {
+        if engine.is_null() || capacity < 0 {
+            return Err(status::INVALID_HANDLE);
+        }
+        // SAFETY: the caller guarantees the handle is valid.
+        let handle = unsafe { &*engine };
+        let guard = match handle.inner.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let json = guard.snapshot_json();
+        let bytes = json.as_bytes();
+        if bytes.len() > capacity as usize {
+            // Tell the caller how much room it needs.
+            return Ok(bytes.len() as i32);
+        }
+        if !out.is_null() {
+            // SAFETY: the caller guarantees `out` has `capacity` bytes.
+            unsafe {
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
+            }
+        }
+        Ok(bytes.len() as i32)
+    })
+}
+
 /// The ABI version this library implements.
 #[no_mangle]
 pub extern "C" fn vimo_abi_version() -> u32 {
@@ -505,30 +638,16 @@ fn apply_command(
             Ok(())
         }
         command_tag::LOAD_PROJECT => {
-            let path = read_text(cmd);
-            match path {
-                Some(p) => {
-                    engine.push_event(EngineEvent::Error {
-                        code: status::UNSUPPORTED,
-                        message: format!("loading `{p}` requires the platform loader"),
-                    });
-                    Ok(())
-                }
-                None => Err(status::INVALID_ARGUMENT),
-            }
+            let path = read_text(cmd).ok_or(status::INVALID_ARGUMENT)?;
+            let path = std::path::PathBuf::from(path);
+            engine.load_project(&path).map_err(|_| status::ERROR)?;
+            Ok(())
         }
         command_tag::SAVE_PROJECT => {
-            let path = read_text(cmd);
-            match path {
-                Some(p) => {
-                    engine.push_event(EngineEvent::Error {
-                        code: status::UNSUPPORTED,
-                        message: format!("saving to `{p}` requires the platform writer"),
-                    });
-                    Ok(())
-                }
-                None => Err(status::INVALID_ARGUMENT),
-            }
+            let path = read_text(cmd).ok_or(status::INVALID_ARGUMENT)?;
+            let path = std::path::PathBuf::from(path);
+            engine.save_project(&path).map_err(|_| status::ERROR)?;
+            Ok(())
         }
         command_tag::START_EXPORT => {
             let preset = match cmd.a {
@@ -536,8 +655,7 @@ fn apply_command(
                 2 => ExportPreset::uhd_2160p(),
                 _ => ExportPreset::hd_1080p(),
             };
-            let encoder = Box::new(vimo_media::FakeEncoder::default());
-            engine.start_export(preset, encoder).map_err(|_| status::ERROR)?;
+            engine.start_export(preset).map_err(|_| status::ERROR)?;
             Ok(())
         }
         command_tag::CANCEL_EXPORT => {
@@ -564,12 +682,444 @@ fn apply_command(
             Ok(())
         }
         command_tag::SET_PREVIEW_SCALE => {
-            let scale = (cmd.a as f64 / 1000.0) as f32;
-            engine.set_preview_scale(scale);
+            engine.set_preview_scale((cmd.a as f64 / 1000.0) as f32);
+            Ok(())
+        }
+        command_tag::ADD_CLIP => {
+            let track = cmd.a as u32;
+            let asset = cmd.b as u32;
+            let start = Time::from_nanos(cmd.c);
+            let project = engine.project();
+            let Some(asset_data) = project.assets.get(asset as usize) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let duration = asset_data.duration;
+            let clip = Clip::new(asset, TimeRange::new(start, start + duration), Time::ZERO);
+            engine
+                .execute(vimo_project::Command::add_clip(track, 0, clip))
+                .map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::REMOVE_CLIP => {
+            let track = cmd.a as u32;
+            let clip = cmd.b as u32;
+            let position = engine
+                .project()
+                .clip_position(track, clip)
+                .ok_or(status::INVALID_ARGUMENT)?;
+            engine
+                .execute(vimo_project::Command::RemoveClip { track, list_index: position, clip })
+                .map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::MOVE_CLIP => {
+            let clip = cmd.a as u32;
+            let track = cmd.b as u32;
+            let new_start = Time::from_nanos(cmd.c);
+            let project = engine.project();
+            let Some(data) = project.clip(clip) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let duration = data.duration();
+            let before = data.clone();
+            let command = vimo_project::Command::edit_clip(clip, before, |c| {
+                c.timeline = TimeRange::new(new_start, new_start + duration);
+            });
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            // Move it to the new track if the track changed.
+            if let Some(from_track) = engine.project().track_of_clip(clip) {
+                if from_track != track {
+                    if let Some(position) = engine.project().clip_position(from_track, clip) {
+                        let move_command = vimo_project::Command::RemoveClip {
+                            track: from_track,
+                            list_index: position,
+                            clip,
+                        };
+                        engine.execute(move_command).map_err(|_| status::ERROR)?;
+                    }
+                }
+            }
+            Ok(())
+        }
+        command_tag::TRIM_CLIP => {
+            let clip = cmd.a as u32;
+            let start = Time::from_nanos(cmd.b);
+            let end = Time::from_nanos(cmd.c);
+            let Some(data) = engine.project().clip(clip) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let before = data.clone();
+            let command = vimo_project::Command::edit_clip(clip, before, |c| {
+                c.timeline = TimeRange::new(start, end);
+            });
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::SPLIT_CLIP => {
+            let clip = cmd.a as u32;
+            let at = Time::from_nanos(cmd.b);
+            let Some(data) = engine.project().clip(clip) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            if at <= data.timeline.start || at >= data.timeline.end {
+                return Err(status::INVALID_ARGUMENT);
+            }
+            let Some(track) = engine.project().track_of_clip(clip) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(position) = engine.project().clip_position(track, clip) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let first = data.clone();
+            let mut second = data.clone();
+            second.timeline = TimeRange::new(at, data.timeline.end);
+            second.source_in = data.source_in + (at - data.timeline.start);
+            // Trim the first clip, then add the second one after it.
+            let trim = vimo_project::Command::edit_clip(clip, first, |c| {
+                c.timeline = TimeRange::new(data.timeline.start, at);
+            });
+            engine.execute(trim).map_err(|_| status::ERROR)?;
+            let add = vimo_project::Command::add_clip(track, position + 1, second);
+            engine.execute(add).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::SET_CLIP_ENABLED => {
+            edit_clip(engine, cmd.a as u32, |c| c.enabled = cmd.b != 0)
+        }
+        command_tag::SET_CLIP_OPACITY => {
+            let value = f32::from_bits(cmd.b as u32);
+            edit_clip(engine, cmd.a as u32, |c| c.opacity = value.clamp(0.0, 1.0))
+        }
+        command_tag::SET_CLIP_BLEND => {
+            let mode = blend_from_u8(cmd.b as u8);
+            edit_clip(engine, cmd.a as u32, |c| c.blend = mode)
+        }
+        command_tag::SET_CLIP_TRANSFORM => {
+            let floats = read_floats(cmd);
+            if floats.len() < 7 {
+                return Err(status::INVALID_ARGUMENT);
+            }
+            edit_clip(engine, cmd.a as u32, |c| {
+                c.transform = Transform {
+                    position: Vec2::new(floats[0], floats[1]),
+                    scale: Vec2::new(floats[2], floats[3]),
+                    rotation: floats[4],
+                    anchor: Vec2::new(floats[5], floats[6]),
+                    crop: c.transform.crop,
+                };
+            })
+        }
+        command_tag::SET_CLIP_VOLUME => {
+            let value = f32::from_bits(cmd.b as u32);
+            edit_clip(engine, cmd.a as u32, |c| c.volume = value.max(0.0))
+        }
+        command_tag::SET_CLIP_SPEED => {
+            let value = f32::from_bits(cmd.b as u32);
+            if value <= 0.0 {
+                return Err(status::INVALID_ARGUMENT);
+            }
+            edit_clip(engine, cmd.a as u32, |c| c.speed = value)
+        }
+        command_tag::SET_CLIP_MUTED => {
+            edit_clip(engine, cmd.a as u32, |c| c.muted = cmd.b != 0)
+        }
+        command_tag::ADD_TRACK => {
+            let kind = if cmd.b != 0 { TrackKind::Audio } else { TrackKind::Video };
+            let name = format!("{} {}", if kind == TrackKind::Audio { "A" } else { "V" },
+                engine.project().tracks.len() + 1);
+            let command = vimo_project::Command::AddTrack { track: Track::new(name, kind) };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::REMOVE_TRACK => {
+            let command = vimo_project::Command::RemoveTrack { index: cmd.a as u32 };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::SET_TRACK_ENABLED => {
+            edit_track(engine, cmd.a as u32, |t| t.enabled = cmd.b != 0)
+        }
+        command_tag::SET_TRACK_MUTED => {
+            edit_track(engine, cmd.a as u32, |t| t.muted = cmd.b != 0)
+        }
+        command_tag::SET_TRACK_SOLO => {
+            edit_track(engine, cmd.a as u32, |t| t.solo = cmd.b != 0)
+        }
+        command_tag::SET_TRACK_LOCKED => {
+            edit_track(engine, cmd.a as u32, |t| t.locked = cmd.b != 0)
+        }
+        command_tag::SET_TRACK_VOLUME => {
+            let value = f32::from_bits(cmd.b as u32);
+            edit_track(engine, cmd.a as u32, |t| t.volume = value.max(0.0))
+        }
+        command_tag::ADD_EFFECT => {
+            let owner = owner_from(cmd.a as u32, cmd.b as u32);
+            let type_index = cmd.c as u32;
+            let Some(desc) = engine.registry().get(vimo_manifest::EffectTypeId::from_index(type_index))
+            else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let node = EffectNode::new(vimo_manifest::EffectTypeId::from_index(type_index), desc);
+            let command = vimo_project::Command::AddEffect { owner, effect: node };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::REMOVE_EFFECT => {
+            let owner = owner_from(cmd.a as u32, cmd.b as u32);
+            let effect = cmd.c as u32;
+            let list_index = match owner {
+                EffectOwner::Clip(id) => engine
+                    .project()
+                    .clip(id)
+                    .and_then(|c| c.effects.iter().position(|e| *e == effect))
+                    .unwrap_or(0),
+                EffectOwner::Track(id) => engine
+                    .project()
+                    .track(id)
+                    .and_then(|t| t.effects.iter().position(|e| *e == effect))
+                    .unwrap_or(0),
+                EffectOwner::Transition(_) => 0,
+            };
+            let command = vimo_project::Command::RemoveEffect { owner, list_index, effect };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::SET_EFFECT_ENABLED => {
+            let effect = cmd.a as u32;
+            let Some(node) = engine.project().effect(effect) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let before = node.clone();
+            let command = vimo_project::Command::edit_effect(effect, before, |e| {
+                e.enabled = cmd.b != 0;
+            });
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::SET_PARAM => {
+            let effect = cmd.a as u32;
+            let param = cmd.b as u16;
+            let value = f32::from_bits(cmd.c as u32);
+            let Some(node) = engine.project().effect(effect) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(desc) = engine.registry().get(node.effect_type) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(param_desc) = desc.param(param) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let before = node.params.get(param).unwrap_or(vimo_manifest::ParamValue::Float(0.0));
+            let after = param_desc.coerce(vimo_manifest::ParamValue::Float(value));
+            let command = vimo_project::Command::SetParam { effect, param, before, after };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::ADD_KEYFRAME => {
+            let effect = cmd.a as u32;
+            let track = cmd.b as usize;
+            let time = Time::from_nanos(cmd.c);
+            let floats = read_floats(cmd);
+            let value = floats.first().copied().unwrap_or(0.0);
+            let Some(node) = engine.project().effect(effect) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(anim) = node.animation.get(track) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let param = anim.param;
+            let Some(desc) = engine.registry().get(node.effect_type) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(param_desc) = desc.param(param) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let key = Keyframe::new(time, param_desc.coerce(vimo_manifest::ParamValue::Float(value)));
+            let command = vimo_project::Command::AddKeyframe { effect, track, key };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::REMOVE_KEYFRAME => {
+            let effect = cmd.a as u32;
+            let track = cmd.b as usize;
+            let index = cmd.c as usize;
+            let Some(node) = engine.project().effect(effect) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(anim) = node.animation.get(track) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(key) = anim.keys.get(index) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let command =
+                vimo_project::Command::RemoveKeyframe { effect, track, index, key: *key };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::SET_KEYFRAME_INTERPOLATION => {
+            let effect = cmd.a as u32;
+            let track = cmd.b as usize;
+            let index = cmd.c as usize;
+            let floats = read_floats(cmd);
+            let kind = floats.first().copied().unwrap_or(0.0) as u32;
+            let interpolation = match kind {
+                1 => Interpolation::Hold,
+                2 => Interpolation::Bezier {
+                    x1: floats.get(1).copied().unwrap_or(0.0),
+                    y1: floats.get(2).copied().unwrap_or(0.0),
+                    x2: floats.get(3).copied().unwrap_or(0.0),
+                    y2: floats.get(4).copied().unwrap_or(1.0),
+                },
+                _ => Interpolation::Linear,
+            };
+            let Some(node) = engine.project().effect(effect) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(anim) = node.animation.get(track) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let Some(key) = anim.keys.get(index) else {
+                return Err(status::INVALID_ARGUMENT);
+            };
+            let before = key.interpolation;
+            let command = vimo_project::Command::SetKeyframeInterpolation {
+                effect,
+                track,
+                index,
+                before,
+                after: interpolation,
+            };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::ADD_ASSET => {
+            let source = read_text(cmd).ok_or(status::INVALID_ARGUMENT)?;
+            let floats = read_floats(cmd);
+            let duration = Time::from_secs_f64(floats.first().copied().unwrap_or(0.0) as f64);
+            let asset = Asset::video(source, duration);
+            let command = vimo_project::Command::AddAsset { asset };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::REMOVE_ASSET => {
+            let command = vimo_project::Command::RemoveAsset { index: cmd.a as u32 };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::ADD_TRANSITION => {
+            let track = cmd.a as u32;
+            let from_clip = cmd.b as u32;
+            let to_clip = cmd.c as u32;
+            let floats = read_floats(cmd);
+            let duration = Time::from_secs_f64(floats.first().copied().unwrap_or(0.5) as f64);
+            let transition = Transition::cross_dissolve(track, from_clip, to_clip, duration);
+            let command = vimo_project::Command::AddTransition { transition };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::REMOVE_TRANSITION => {
+            let command = vimo_project::Command::RemoveTransition { index: cmd.a as u32 };
+            engine.execute(command).map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::SET_PROJECT_NAME => {
+            let name = read_text(cmd).ok_or(status::INVALID_ARGUMENT)?;
+            let project = engine.project_mut();
+            project.meta.name = name;
+            engine.invalidate_project();
+            Ok(())
+        }
+        command_tag::SET_RESOLUTION => {
+            let project = engine.project_mut();
+            project.meta.width = cmd.a.max(1) as u32;
+            project.meta.height = cmd.b.max(1) as u32;
+            engine.invalidate_project();
+            Ok(())
+        }
+        command_tag::SET_FPS => {
+            let project = engine.project_mut();
+            let fps = vimo_foundation::time::Rational::new(cmd.a, cmd.b)
+                .unwrap_or(vimo_foundation::time::Rational::ONE);
+            project.meta.timebase = vimo_foundation::time::Timebase::from_fps(fps.num(), fps.den());
+            engine.invalidate_project();
+            Ok(())
+        }
+        command_tag::SET_AUTOSAVE_DIR => {
+            let dir = read_text(cmd).ok_or(status::INVALID_ARGUMENT)?;
+            engine.files_mut().set_autosave_dir(dir);
+            Ok(())
+        }
+        command_tag::RECOVER_AUTOSAVE => {
+            engine.recover_autosave().map_err(|_| status::ERROR)?;
+            Ok(())
+        }
+        command_tag::SET_LOOP => {
+            let range = if cmd.c != 0 {
+                Some((Time::from_nanos(cmd.a), Time::from_nanos(cmd.b)))
+            } else {
+                None
+            };
+            engine.clock_mut().set_loop(range);
+            Ok(())
+        }
+        command_tag::EXPORT_PAUSE => {
+            engine.pause_export();
+            Ok(())
+        }
+        command_tag::EXPORT_RESUME => {
+            engine.resume_export();
+            Ok(())
+        }
+        command_tag::REQUEST_SNAPSHOT => {
+            let json = engine.snapshot_json();
+            engine.push_event(EngineEvent::Snapshot { json });
             Ok(())
         }
         _ => Err(status::INVALID_ARGUMENT),
     }
+}
+
+/// Edit a clip through a command.
+fn edit_clip(
+    engine: &mut Engine,
+    clip: u32,
+    mutate: impl FnOnce(&mut Clip),
+) -> Result<(), i32> {
+    let Some(data) = engine.project().clip(clip) else {
+        return Err(status::INVALID_ARGUMENT);
+    };
+    let before = data.clone();
+    let command = vimo_project::Command::edit_clip(clip, before, mutate);
+    engine.execute(command).map_err(|_| status::ERROR)
+}
+
+/// Edit a track through a command.
+fn edit_track(
+    engine: &mut Engine,
+    track: u32,
+    mutate: impl FnOnce(&mut Track),
+) -> Result<(), i32> {
+    let Some(data) = engine.project().track(track) else {
+        return Err(status::INVALID_ARGUMENT);
+    };
+    let before = data.clone();
+    let command = vimo_project::Command::edit_track(track, before, mutate);
+    engine.execute(command).map_err(|_| status::ERROR)
+}
+
+/// The effect owner for a command.
+fn owner_from(kind: u32, id: u32) -> EffectOwner {
+    if kind == 1 {
+        EffectOwner::Track(id)
+    } else {
+        EffectOwner::Clip(id)
+    }
+}
+
+/// The blend mode for a numeric code.
+fn blend_from_u8(v: u8) -> BlendMode {
+    BlendMode::from_u8(v)
 }
 
 /// Read the optional text payload of a command.
@@ -580,6 +1130,17 @@ fn read_text(cmd: &VimoCommand) -> Option<String> {
     // SAFETY: the caller guarantees `text` points to `text_len` readable bytes.
     let bytes = unsafe { std::slice::from_raw_parts(cmd.text, cmd.text_len as usize) };
     std::str::from_utf8(bytes).ok().map(|s| s.to_string())
+}
+
+/// Read the optional float payload of a command.
+fn read_floats(cmd: &VimoCommand) -> Vec<f32> {
+    if cmd.floats.is_null() || cmd.float_count == 0 {
+        return Vec::new();
+    }
+    // SAFETY: the caller guarantees `floats` points to `float_count` readable
+    // floats.
+    let bytes = unsafe { std::slice::from_raw_parts(cmd.floats, cmd.float_count as usize) };
+    bytes.to_vec()
 }
 
 /// Convert an engine event into its FFI representation.
@@ -656,5 +1217,24 @@ fn convert_event(event: &EngineEvent) -> (u32, i64, i64, i32, CString) {
             *code,
             CString::new(message.clone()).unwrap_or_default(),
         ),
+        EngineEvent::Snapshot { json } => (
+            event_tag::SNAPSHOT,
+            0,
+            0,
+            0,
+            CString::new(json.clone()).unwrap_or_default(),
+        ),
     }
+}
+
+/// The uniform name of a manifest parameter, for the platform layer.
+#[must_use]
+pub fn param_uniform_name(name: &str) -> String {
+    uniform_name(name)
+}
+
+/// The error code of a kind, for the platform layer.
+#[must_use]
+pub fn kind_code(kind: ErrorKind) -> i32 {
+    kind.code()
 }
