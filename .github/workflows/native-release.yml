@@ -93,6 +93,11 @@ jobs:
         with:
           tool: cargo-ndk
 
+      # The CMake of the SDK is used to build the Oboe shim, because the one
+      # on the machine is often newer than the projects can handle.
+      - name: Install the Android CMake
+        run: sdkmanager "cmake;3.22.1"
+
       - name: Build the native libraries
         run: |
           scripts/build-native.sh build/native arm64-v8a armeabi-v7a x86_64

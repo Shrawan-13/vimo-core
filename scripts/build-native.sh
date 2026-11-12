@@ -30,9 +30,23 @@ if [ -z "$NDK" ] || [ ! -d "$NDK" ]; then
   exit 1
 fi
 
-CMAKE="$(ls -d "$NDK"/build/cmake/*/bin/cmake 2>/dev/null | head -1)"
+# The CMake of the Android SDK is used when it is installed; otherwise the
+# one on the machine is, with the policy floor lowered for the old projects.
+CMAKE=""
+for candidate in \
+  "${ANDROID_HOME:-}"/cmake/*/bin/cmake \
+  "${ANDROID_SDK_ROOT:-}"/cmake/*/bin/cmake \
+  "$NDK"/build/cmake/*/bin/cmake; do
+  if [ -x "$candidate" ]; then
+    CMAKE="$candidate"
+    break
+  fi
+done
 if [ -z "$CMAKE" ]; then
-  echo "The NDK does not ship a CMake." >&2
+  CMAKE="$(command -v cmake || true)"
+fi
+if [ -z "$CMAKE" ]; then
+  echo "No CMake was found. Install the SDK's CMake with: sdkmanager cmake;3.22.1" >&2
   exit 1
 fi
 
