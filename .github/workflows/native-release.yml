@@ -107,16 +107,21 @@ jobs:
         run: |
           scripts/build-native.sh build/native arm64-v8a armeabi-v7a x86_64
 
-      - name: Collect the assets
+      # Only what is meant to be packaged is staged: the build trees are
+      # scratch space and must not end up in the release.
+      - name: Stage the package
         run: |
-          mkdir -p build/native/assets/vimo/manifests build/native/assets/vimo/shaders
-          cp assets/manifests/*.json build/native/assets/vimo/manifests/
-          cp assets/shaders/*.frag build/native/assets/vimo/shaders/
+          rm -rf build/package
+          mkdir -p build/package/assets/vimo/manifests build/package/assets/vimo/shaders
+          cp -r build/native/jniLibs build/package/
+          cp assets/manifests/*.json build/package/assets/vimo/manifests/
+          cp assets/shaders/*.frag build/package/assets/vimo/shaders/
+          find build/package -type f -printf '%p %k KB\n' | sort
 
       - name: Write the checksums
         shell: bash
         run: |
-          cd build/native
+          cd build/package
           find . -type f ! -name checksums.txt -print0 \
             | sort -z \
             | xargs -0 sha256sum > checksums.txt
@@ -124,11 +129,12 @@ jobs:
 
       - name: Pack the artifact
         run: |
-          cd build/native
+          cd build/package
           zip -r "../vimo-native-${{ steps.version.outputs.version }}-android.zip" .
           cd ..
           sha256sum "vimo-native-${{ steps.version.outputs.version }}-android.zip" \
             > "vimo-native-${{ steps.version.outputs.version }}-android.zip.sha256"
+          ls -la build/vimo-native-${{ steps.version.outputs.version }}-android.zip
 
       - name: Publish the release
         env:

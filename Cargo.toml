@@ -47,6 +47,8 @@ lto = "thin"
 codegen-units = 1
 panic = "unwind"
 debug = false
+# The symbols are not needed in the libraries that are shipped.
+strip = "symbols"
 
 [profile.bench]
 opt-level = 3
