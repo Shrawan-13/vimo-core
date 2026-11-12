@@ -75,6 +75,11 @@ jobs:
           path: ${{ env.CARGO_HOME }}/bin
           key: cargo-bin-${{ runner.os }}
 
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
       - name: Set up the NDK
         id: ndk
         uses: nttld/setup-ndk@v1
