@@ -259,7 +259,12 @@ impl MockGl {
     /// The calls matching a predicate.
     #[must_use]
     pub fn calls_of(&self, predicate: impl Fn(&Call) -> bool) -> Vec<Call> {
-        self.lock().calls.iter().filter(|c| predicate(c)).cloned().collect()
+        self.lock()
+            .calls
+            .iter()
+            .filter(|c| predicate(c))
+            .cloned()
+            .collect()
     }
 
     /// The number of draw calls.
@@ -290,9 +295,12 @@ impl MockGl {
     #[must_use]
     pub fn last_blend_func(&self) -> Option<(u32, u32, u32, u32)> {
         self.lock().calls.iter().rev().find_map(|c| match c {
-            Call::BlendFuncSeparate { src_rgb, dst_rgb, src_alpha, dst_alpha } => {
-                Some((*src_rgb, *dst_rgb, *src_alpha, *dst_alpha))
-            }
+            Call::BlendFuncSeparate {
+                src_rgb,
+                dst_rgb,
+                src_alpha,
+                dst_alpha,
+            } => Some((*src_rgb, *dst_rgb, *src_alpha, *dst_alpha)),
             _ => None,
         })
     }
@@ -349,7 +357,11 @@ impl MockGl {
     /// The number of textures that were created.
     #[must_use]
     pub fn created_textures(&self) -> usize {
-        self.lock().calls.iter().filter(|c| matches!(c, Call::CreateTexture(_))).count()
+        self.lock()
+            .calls
+            .iter()
+            .filter(|c| matches!(c, Call::CreateTexture(_)))
+            .count()
     }
 
     /// Set the error that `get_error` reports.
@@ -380,7 +392,10 @@ impl GlApi for MockGl {
         let id = ShaderId(state.next_id);
         state.next_id += 1;
         state.sources.insert(id, source.to_string());
-        state.calls.push(Call::CreateShader { kind, source: source.to_string() });
+        state.calls.push(Call::CreateShader {
+            kind,
+            source: source.to_string(),
+        });
         Ok(id)
     }
 
@@ -428,19 +443,28 @@ impl GlApi for MockGl {
     fn uniform_2f(&mut self, location: UniformLocation, x: f32, y: f32) {
         let mut state = self.lock();
         let name = MockGl::name_of(&state, location.program, location.location);
-        state.calls.push(Call::Uniform2f { name, value: [x, y] });
+        state.calls.push(Call::Uniform2f {
+            name,
+            value: [x, y],
+        });
     }
 
     fn uniform_3f(&mut self, location: UniformLocation, x: f32, y: f32, z: f32) {
         let mut state = self.lock();
         let name = MockGl::name_of(&state, location.program, location.location);
-        state.calls.push(Call::Uniform3f { name, value: [x, y, z] });
+        state.calls.push(Call::Uniform3f {
+            name,
+            value: [x, y, z],
+        });
     }
 
     fn uniform_4f(&mut self, location: UniformLocation, x: f32, y: f32, z: f32, w: f32) {
         let mut state = self.lock();
         let name = MockGl::name_of(&state, location.program, location.location);
-        state.calls.push(Call::Uniform4f { name, value: [x, y, z, w] });
+        state.calls.push(Call::Uniform4f {
+            name,
+            value: [x, y, z, w],
+        });
     }
 
     fn uniform_1i(&mut self, location: UniformLocation, value: i32) {
@@ -452,7 +476,9 @@ impl GlApi for MockGl {
     fn uniform_matrix_3fv(&mut self, location: UniformLocation, data: &[f32; 9]) {
         let mut state = self.lock();
         let name = MockGl::name_of(&state, location.program, location.location);
-        state.calls.push(Call::UniformMatrix3fv { name, value: *data });
+        state
+            .calls
+            .push(Call::UniformMatrix3fv { name, value: *data });
     }
 
     fn create_texture(&mut self) -> VimoResult<TextureId> {
@@ -475,8 +501,18 @@ impl GlApi for MockGl {
         self.lock().calls.push(Call::ActiveTexture(unit));
     }
 
-    fn tex_image_2d(&mut self, _target: TextureTarget, width: u32, height: u32, format: TextureFormat) {
-        self.lock().calls.push(Call::TexImage2D { width, height, format });
+    fn tex_image_2d(
+        &mut self,
+        _target: TextureTarget,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+    ) {
+        self.lock().calls.push(Call::TexImage2D {
+            width,
+            height,
+            format,
+        });
     }
 
     fn tex_parameter(&mut self, _target: TextureTarget, param: TextureParam, value: i32) {
@@ -524,7 +560,12 @@ impl GlApi for MockGl {
     }
 
     fn vertex_attrib_pointer(&mut self, index: u32, size: u32, stride: u32, offset: u32) {
-        self.lock().calls.push(Call::VertexAttribPointer { index, size, stride, offset });
+        self.lock().calls.push(Call::VertexAttribPointer {
+            index,
+            size,
+            stride,
+            offset,
+        });
     }
 
     fn create_framebuffer(&mut self) -> VimoResult<FramebufferId> {
@@ -544,7 +585,9 @@ impl GlApi for MockGl {
     }
 
     fn framebuffer_texture(&mut self, attachment: FramebufferAttachment, texture: TextureId) {
-        self.lock().calls.push(Call::FramebufferTexture(attachment, texture));
+        self.lock()
+            .calls
+            .push(Call::FramebufferTexture(attachment, texture));
     }
 
     fn check_framebuffer(&mut self, _framebuffer: FramebufferId) -> VimoResult<()> {
@@ -580,13 +623,21 @@ impl GlApi for MockGl {
     }
 
     fn blend_func(&mut self, src: u32, dst: u32) {
-        self.lock()
-            .calls
-            .push(Call::BlendFuncSeparate { src_rgb: src, dst_rgb: dst, src_alpha: src, dst_alpha: dst });
+        self.lock().calls.push(Call::BlendFuncSeparate {
+            src_rgb: src,
+            dst_rgb: dst,
+            src_alpha: src,
+            dst_alpha: dst,
+        });
     }
 
     fn blend_func_separate(&mut self, src_rgb: u32, dst_rgb: u32, src_alpha: u32, dst_alpha: u32) {
-        self.lock().calls.push(Call::BlendFuncSeparate { src_rgb, dst_rgb, src_alpha, dst_alpha });
+        self.lock().calls.push(Call::BlendFuncSeparate {
+            src_rgb,
+            dst_rgb,
+            src_alpha,
+            dst_alpha,
+        });
     }
 
     fn blend_equation(&mut self, equation: u32) {

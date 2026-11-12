@@ -147,14 +147,19 @@ impl Default for DeviceProfile {
 impl DeviceProfile {
     /// Build a profile, deriving the tier from the raw facts.
     #[must_use]
-    pub fn new(
-        ram_bytes: u64,
-        max_texture_size: u32,
-        capabilities: CodecCapabilities,
-    ) -> Self {
-        let hardware_decoders = capabilities.video_decoders.iter().filter(|d| d.hardware).count() as u32;
+    pub fn new(ram_bytes: u64, max_texture_size: u32, capabilities: CodecCapabilities) -> Self {
+        let hardware_decoders = capabilities
+            .video_decoders
+            .iter()
+            .filter(|d| d.hardware)
+            .count() as u32;
         let tier = DeviceTier::classify(ram_bytes, hardware_decoders, max_texture_size);
-        DeviceProfile { tier, ram_bytes, max_texture_size, capabilities }
+        DeviceProfile {
+            tier,
+            ram_bytes,
+            max_texture_size,
+            capabilities,
+        }
     }
 
     /// The base quality settings for this device.
@@ -217,7 +222,10 @@ mod tests {
         assert_eq!(DeviceTier::classify(1 << 30, 0, 2048), DeviceTier::Low);
         assert_eq!(DeviceTier::classify(3 << 30, 1, 4096), DeviceTier::Medium);
         assert_eq!(DeviceTier::classify(6 << 30, 2, 4096), DeviceTier::High);
-        assert_eq!(DeviceTier::classify(12 << 30, 6, 8192), DeviceTier::Flagship);
+        assert_eq!(
+            DeviceTier::classify(12 << 30, 6, 8192),
+            DeviceTier::Flagship
+        );
     }
 
     #[test]

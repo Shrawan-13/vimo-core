@@ -57,7 +57,10 @@ pub struct UniformLocation {
 
 impl Default for UniformLocation {
     fn default() -> Self {
-        UniformLocation { program: ProgramId(0), location: -1 }
+        UniformLocation {
+            program: ProgramId(0),
+            location: -1,
+        }
     }
 }
 
@@ -363,7 +366,13 @@ pub trait GlApi: Send {
     /// Select the active texture unit.
     fn active_texture(&mut self, unit: u32);
     /// Allocate the storage of a texture.
-    fn tex_image_2d(&mut self, target: TextureTarget, width: u32, height: u32, format: TextureFormat);
+    fn tex_image_2d(
+        &mut self,
+        target: TextureTarget,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+    );
     /// Set a texture parameter.
     fn tex_parameter(&mut self, target: TextureTarget, param: TextureParam, value: i32);
 
@@ -468,9 +477,15 @@ mod tests {
 
     #[test]
     fn uniform_locations_report_validity() {
-        let l = UniformLocation { program: ProgramId(1), location: -1 };
+        let l = UniformLocation {
+            program: ProgramId(1),
+            location: -1,
+        };
         assert!(!l.is_valid());
-        let l = UniformLocation { program: ProgramId(1), location: 3 };
+        let l = UniformLocation {
+            program: ProgramId(1),
+            location: 3,
+        };
         assert!(l.is_valid());
     }
 

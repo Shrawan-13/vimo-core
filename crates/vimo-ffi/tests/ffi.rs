@@ -13,12 +13,21 @@ use vimo_core::{
 };
 
 fn make_config() -> VimoConfig {
-    VimoConfig { width: 1280, height: 720, sample_rate: 48_000, channels: 2, flags: 0 }
+    VimoConfig {
+        width: 1280,
+        height: 720,
+        sample_rate: 48_000,
+        channels: 2,
+        flags: 0,
+    }
 }
 
 /// A command with no payload.
 fn cmd(tag: u32) -> VimoCommand {
-    VimoCommand { tag, ..Default::default() }
+    VimoCommand {
+        tag,
+        ..Default::default()
+    }
 }
 
 /// A command with a text payload.
@@ -73,8 +82,17 @@ fn playback_commands_are_executed() {
     let engine = unsafe { vimo_engine_create(&config) };
     assert!(!engine.is_null());
 
-    for tag in [command_tag::PLAY, command_tag::PAUSE, command_tag::STOP, command_tag::SEEK] {
-        let c = VimoCommand { tag, a: 1_000_000_000, ..Default::default() };
+    for tag in [
+        command_tag::PLAY,
+        command_tag::PAUSE,
+        command_tag::STOP,
+        command_tag::SEEK,
+    ] {
+        let c = VimoCommand {
+            tag,
+            a: 1_000_000_000,
+            ..Default::default()
+        };
         // SAFETY: both pointers are valid.
         assert_eq!(unsafe { vimo_engine_execute(engine, &c) }, status::OK);
     }
@@ -107,7 +125,10 @@ fn editing_commands_are_executed() {
     // Add an asset, a track and a clip, then edit the clip.
     let (add_asset, asset_bytes) = cmd_text(command_tag::ADD_ASSET, "clip.mp4");
     // SAFETY: both pointers are valid and the text outlives the call.
-    assert_eq!(unsafe { vimo_engine_execute(engine, &add_asset) }, status::OK);
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &add_asset) },
+        status::OK
+    );
     drop(asset_bytes);
 
     assert_eq!(
@@ -117,13 +138,16 @@ fn editing_commands_are_executed() {
 
     let add_clip = VimoCommand {
         tag: command_tag::ADD_CLIP,
-        a: 0,   // track
-        b: 0,   // asset
-        c: 0,   // start
+        a: 0, // track
+        b: 0, // asset
+        c: 0, // start
         ..Default::default()
     };
     // SAFETY: both pointers are valid.
-    assert_eq!(unsafe { vimo_engine_execute(engine, &add_clip) }, status::OK);
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &add_clip) },
+        status::OK
+    );
 
     let opacity = VimoCommand {
         tag: command_tag::SET_CLIP_OPACITY,
@@ -136,9 +160,15 @@ fn editing_commands_are_executed() {
 
     // Undo it.
     // SAFETY: both pointers are valid.
-    assert_eq!(unsafe { vimo_engine_execute(engine, &cmd(command_tag::UNDO)) }, status::OK);
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &cmd(command_tag::UNDO)) },
+        status::OK
+    );
     // SAFETY: both pointers are valid.
-    assert_eq!(unsafe { vimo_engine_execute(engine, &cmd(command_tag::REDO)) }, status::OK);
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &cmd(command_tag::REDO)) },
+        status::OK
+    );
 
     // SAFETY: the handle is valid.
     unsafe { vimo_engine_destroy(engine) };
@@ -198,7 +228,10 @@ fn the_snapshot_is_readable() {
     let written = unsafe { vimo_engine_snapshot(engine, buffer.as_mut_ptr(), needed) };
     assert_eq!(written, needed);
     let text = String::from_utf8_lossy(&buffer);
-    assert!(text.contains("\"tracks\""), "the snapshot must describe the project");
+    assert!(
+        text.contains("\"tracks\""),
+        "the snapshot must describe the project"
+    );
     assert!(text.contains("\"meta\""));
 
     // SAFETY: the handle is valid.

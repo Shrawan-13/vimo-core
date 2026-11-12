@@ -18,8 +18,8 @@
 
 #![deny(missing_docs)]
 
-use std::ffi::{CString, c_char};
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::ffi::{c_char, CString};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Mutex;
 
 use vimo_device::DeviceProfile;
@@ -209,7 +209,13 @@ pub struct VimoConfig {
 
 impl Default for VimoConfig {
     fn default() -> Self {
-        VimoConfig { width: 1920, height: 1080, sample_rate: 48_000, channels: 2, flags: 0 }
+        VimoConfig {
+            width: 1920,
+            height: 1080,
+            sample_rate: 48_000,
+            channels: 2,
+            flags: 0,
+        }
     }
 }
 
@@ -271,7 +277,14 @@ pub struct VimoEvent {
 
 impl Default for VimoEvent {
     fn default() -> Self {
-        VimoEvent { tag: 0, a: 0, b: 0, code: 0, message: std::ptr::null(), message_len: 0 }
+        VimoEvent {
+            tag: 0,
+            a: 0,
+            b: 0,
+            code: 0,
+            message: std::ptr::null(),
+            message_len: 0,
+        }
     }
 }
 
@@ -651,7 +664,10 @@ pub unsafe extern "C" fn vimo_engine_last_error(engine: *mut VimoEngine) -> *con
                 Ok(g) => g,
                 Err(p) => p.into_inner(),
             };
-            guard.as_ref().map(|m| m.to_string_lossy().into_owned()).unwrap_or_default()
+            guard
+                .as_ref()
+                .map(|m| m.to_string_lossy().into_owned())
+                .unwrap_or_default()
         };
         BUFFER.with(|b| {
             let mut b = b.borrow_mut();
@@ -663,11 +679,7 @@ pub unsafe extern "C" fn vimo_engine_last_error(engine: *mut VimoEngine) -> *con
 }
 
 /// Apply a command to the engine.
-fn apply_command(
-    engine: &mut Engine,
-    cmd: &VimoCommand,
-    handle: &VimoEngine,
-) -> Result<(), i32> {
+fn apply_command(engine: &mut Engine, cmd: &VimoCommand, handle: &VimoEngine) -> Result<(), i32> {
     match cmd.tag {
         command_tag::PLAY => {
             engine.play();
@@ -768,7 +780,11 @@ fn apply_command(
                 .clip_position(track, clip)
                 .ok_or(status::INVALID_ARGUMENT)?;
             engine
-                .execute(vimo_project::Command::RemoveClip { track, list_index: position, clip })
+                .execute(vimo_project::Command::RemoveClip {
+                    track,
+                    list_index: position,
+                    clip,
+                })
                 .map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -816,7 +832,11 @@ fn apply_command(
                 .unwrap_or(Time::ZERO);
             let before = data.clone();
             let trimmed = data.trimmed(TimeRange::new(start, end), source_duration);
-            let command = vimo_project::Command::UpdateClip { clip, before, after: trimmed };
+            let command = vimo_project::Command::UpdateClip {
+                clip,
+                before,
+                after: trimmed,
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -889,31 +909,36 @@ fn apply_command(
             }
             edit_clip(engine, cmd.a as u32, |c| c.speed = value)
         }
-        command_tag::SET_CLIP_MUTED => {
-            edit_clip(engine, cmd.a as u32, |c| c.muted = cmd.b != 0)
-        }
+        command_tag::SET_CLIP_MUTED => edit_clip(engine, cmd.a as u32, |c| c.muted = cmd.b != 0),
         command_tag::ADD_TRACK => {
-            let kind = if cmd.b != 0 { TrackKind::Audio } else { TrackKind::Video };
-            let name = format!("{} {}", if kind == TrackKind::Audio { "A" } else { "V" },
-                engine.project().tracks.len() + 1);
-            let command = vimo_project::Command::AddTrack { track: Track::new(name, kind) };
+            let kind = if cmd.b != 0 {
+                TrackKind::Audio
+            } else {
+                TrackKind::Video
+            };
+            let name = format!(
+                "{} {}",
+                if kind == TrackKind::Audio { "A" } else { "V" },
+                engine.project().tracks.len() + 1
+            );
+            let command = vimo_project::Command::AddTrack {
+                track: Track::new(name, kind),
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
         command_tag::REMOVE_TRACK => {
-            let command = vimo_project::Command::RemoveTrack { index: cmd.a as u32 };
+            let command = vimo_project::Command::RemoveTrack {
+                index: cmd.a as u32,
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
         command_tag::SET_TRACK_ENABLED => {
             edit_track(engine, cmd.a as u32, |t| t.enabled = cmd.b != 0)
         }
-        command_tag::SET_TRACK_MUTED => {
-            edit_track(engine, cmd.a as u32, |t| t.muted = cmd.b != 0)
-        }
-        command_tag::SET_TRACK_SOLO => {
-            edit_track(engine, cmd.a as u32, |t| t.solo = cmd.b != 0)
-        }
+        command_tag::SET_TRACK_MUTED => edit_track(engine, cmd.a as u32, |t| t.muted = cmd.b != 0),
+        command_tag::SET_TRACK_SOLO => edit_track(engine, cmd.a as u32, |t| t.solo = cmd.b != 0),
         command_tag::SET_TRACK_LOCKED => {
             edit_track(engine, cmd.a as u32, |t| t.locked = cmd.b != 0)
         }
@@ -924,12 +949,17 @@ fn apply_command(
         command_tag::ADD_EFFECT => {
             let owner = owner_from(cmd.a as u32, cmd.b as u32);
             let type_index = cmd.c as u32;
-            let Some(desc) = engine.registry().get(vimo_manifest::EffectTypeId::from_index(type_index))
+            let Some(desc) = engine
+                .registry()
+                .get(vimo_manifest::EffectTypeId::from_index(type_index))
             else {
                 return Err(status::INVALID_ARGUMENT);
             };
             let node = EffectNode::new(vimo_manifest::EffectTypeId::from_index(type_index), desc);
-            let command = vimo_project::Command::AddEffect { owner, effect: node };
+            let command = vimo_project::Command::AddEffect {
+                owner,
+                effect: node,
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -949,7 +979,11 @@ fn apply_command(
                     .unwrap_or(0),
                 EffectOwner::Transition(_) => 0,
             };
-            let command = vimo_project::Command::RemoveEffect { owner, list_index, effect };
+            let command = vimo_project::Command::RemoveEffect {
+                owner,
+                list_index,
+                effect,
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -978,9 +1012,17 @@ fn apply_command(
             let Some(param_desc) = desc.param(param) else {
                 return Err(status::INVALID_ARGUMENT);
             };
-            let before = node.params.get(param).unwrap_or(vimo_manifest::ParamValue::Float(0.0));
+            let before = node
+                .params
+                .get(param)
+                .unwrap_or(vimo_manifest::ParamValue::Float(0.0));
             let after = param_desc.coerce(vimo_manifest::ParamValue::Float(value));
-            let command = vimo_project::Command::SetParam { effect, param, before, after };
+            let command = vimo_project::Command::SetParam {
+                effect,
+                param,
+                before,
+                after,
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -1003,7 +1045,10 @@ fn apply_command(
             let Some(param_desc) = desc.param(param) else {
                 return Err(status::INVALID_ARGUMENT);
             };
-            let key = Keyframe::new(time, param_desc.coerce(vimo_manifest::ParamValue::Float(value)));
+            let key = Keyframe::new(
+                time,
+                param_desc.coerce(vimo_manifest::ParamValue::Float(value)),
+            );
             let command = vimo_project::Command::AddKeyframe { effect, track, key };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
@@ -1021,8 +1066,12 @@ fn apply_command(
             let Some(key) = anim.keys.get(index) else {
                 return Err(status::INVALID_ARGUMENT);
             };
-            let command =
-                vimo_project::Command::RemoveKeyframe { effect, track, index, key: *key };
+            let command = vimo_project::Command::RemoveKeyframe {
+                effect,
+                track,
+                index,
+                key: *key,
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -1072,7 +1121,9 @@ fn apply_command(
             Ok(())
         }
         command_tag::REMOVE_ASSET => {
-            let command = vimo_project::Command::RemoveAsset { index: cmd.a as u32 };
+            let command = vimo_project::Command::RemoveAsset {
+                index: cmd.a as u32,
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -1088,7 +1139,9 @@ fn apply_command(
             Ok(())
         }
         command_tag::REMOVE_TRANSITION => {
-            let command = vimo_project::Command::RemoveTransition { index: cmd.a as u32 };
+            let command = vimo_project::Command::RemoveTransition {
+                index: cmd.a as u32,
+            };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -1150,11 +1203,7 @@ fn apply_command(
 }
 
 /// Edit a clip through a command.
-fn edit_clip(
-    engine: &mut Engine,
-    clip: u32,
-    mutate: impl FnOnce(&mut Clip),
-) -> Result<(), i32> {
+fn edit_clip(engine: &mut Engine, clip: u32, mutate: impl FnOnce(&mut Clip)) -> Result<(), i32> {
     let Some(data) = engine.project().clip(clip) else {
         return Err(status::INVALID_ARGUMENT);
     };
@@ -1164,11 +1213,7 @@ fn edit_clip(
 }
 
 /// Edit a track through a command.
-fn edit_track(
-    engine: &mut Engine,
-    track: u32,
-    mutate: impl FnOnce(&mut Track),
-) -> Result<(), i32> {
+fn edit_track(engine: &mut Engine, track: u32, mutate: impl FnOnce(&mut Track)) -> Result<(), i32> {
     let Some(data) = engine.project().track(track) else {
         return Err(status::INVALID_ARGUMENT);
     };

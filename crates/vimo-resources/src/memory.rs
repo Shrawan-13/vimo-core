@@ -55,7 +55,11 @@ impl MemoryTracker {
     /// A tracker with the given budget in bytes.
     #[must_use]
     pub fn new(budget: usize) -> Self {
-        MemoryTracker { used: 0, peak: 0, budget: budget.max(1) }
+        MemoryTracker {
+            used: 0,
+            peak: 0,
+            budget: budget.max(1),
+        }
     }
 
     /// The bytes currently in use.
@@ -142,10 +146,18 @@ pub struct TrimRequest {
 /// * `Critical` — empty the frame cache, release idle decoders and textures.
 pub fn trim_policy(level: PressureLevel, tracker: &MemoryTracker) -> TrimRequest {
     match level {
-        PressureLevel::Normal => TrimRequest { level, target_bytes: 0, may_pause: false },
+        PressureLevel::Normal => TrimRequest {
+            level,
+            target_bytes: 0,
+            may_pause: false,
+        },
         PressureLevel::Warning => {
             let cache_bytes = (tracker.used() as f64 * 0.5) as usize;
-            TrimRequest { level, target_bytes: cache_bytes, may_pause: false }
+            TrimRequest {
+                level,
+                target_bytes: cache_bytes,
+                may_pause: false,
+            }
         }
         PressureLevel::Critical => TrimRequest {
             level,

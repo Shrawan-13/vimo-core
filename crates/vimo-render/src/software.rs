@@ -106,7 +106,10 @@ impl<'a> FrameView<'a> {
         let y1i = (y0i as i32 + 1).clamp(0, self.height as i32 - 1) as usize;
         let w = self.width as usize;
         let p = |x: usize, y: usize| -> [f32; 4] {
-            self.pixels.get(y * w + x).map(|c| c.to_f32()).unwrap_or([0.0; 4])
+            self.pixels
+                .get(y * w + x)
+                .map(|c| c.to_f32())
+                .unwrap_or([0.0; 4])
         };
         let c00 = p(x0i, y0i);
         let c10 = p(x1i, y0i);
@@ -155,13 +158,7 @@ pub fn execute(plan: &FramePlan, target: &mut FrameBuffer, provider: &dyn FrameP
                     continue;
                 };
                 draw_quad(
-                    target,
-                    view,
-                    &inverse,
-                    *src_rect,
-                    *dst_rect,
-                    *blend,
-                    *opacity,
+                    target, view, &inverse, *src_rect, *dst_rect, *blend, *opacity,
                 );
             }
             DrawStep::Transition {
@@ -184,14 +181,7 @@ pub fn execute(plan: &FramePlan, target: &mut FrameBuffer, provider: &dyn FrameP
                     continue;
                 };
                 draw_transition(
-                    target,
-                    from,
-                    to,
-                    &inverse,
-                    *src_rect,
-                    *dst_rect,
-                    *kind,
-                    *progress,
+                    target, from, to, &inverse, *src_rect, *dst_rect, *kind, *progress,
                 );
             }
         }
@@ -231,12 +221,16 @@ fn draw_quad(
                 .map(|c| c.to_f32())
                 .unwrap_or([0.0; 4]);
             let blended = blend_pixel(blend, color, dst, opacity);
-            target.set_pixel(px as u32, py as u32, Rgba8::new(
-                to_u8(blended[0]),
-                to_u8(blended[1]),
-                to_u8(blended[2]),
-                to_u8(blended[3]),
-            ));
+            target.set_pixel(
+                px as u32,
+                py as u32,
+                Rgba8::new(
+                    to_u8(blended[0]),
+                    to_u8(blended[1]),
+                    to_u8(blended[2]),
+                    to_u8(blended[3]),
+                ),
+            );
         }
     }
 }
@@ -292,12 +286,16 @@ fn draw_transition(
                 .map(|c| c.to_f32())
                 .unwrap_or([0.0; 4]);
             let blended = blend_pixel(BlendMode::Normal, color, dst, 1.0);
-            target.set_pixel(px as u32, py as u32, Rgba8::new(
-                to_u8(blended[0]),
-                to_u8(blended[1]),
-                to_u8(blended[2]),
-                to_u8(blended[3]),
-            ));
+            target.set_pixel(
+                px as u32,
+                py as u32,
+                Rgba8::new(
+                    to_u8(blended[0]),
+                    to_u8(blended[1]),
+                    to_u8(blended[2]),
+                    to_u8(blended[3]),
+                ),
+            );
         }
     }
 }
@@ -389,21 +387,28 @@ pub struct DiffStats {
 #[must_use]
 pub fn diff(a: &FrameBuffer, b: &FrameBuffer) -> DiffStats {
     if a.width != b.width || a.height != b.height {
-        return DiffStats { differing_pixels: a.pixels.len().max(b.pixels.len()), max_channel_delta: 255 };
+        return DiffStats {
+            differing_pixels: a.pixels.len().max(b.pixels.len()),
+            max_channel_delta: 255,
+        };
     }
     let mut differing = 0usize;
     let mut max_delta = 0u8;
     for (pa, pb) in a.pixels.iter().zip(b.pixels.iter()) {
-        let d = pa.r.abs_diff(pb.r)
-            .max(pa.g.abs_diff(pb.g))
-            .max(pa.b.abs_diff(pb.b))
-            .max(pa.a.abs_diff(pb.a));
+        let d =
+            pa.r.abs_diff(pb.r)
+                .max(pa.g.abs_diff(pb.g))
+                .max(pa.b.abs_diff(pb.b))
+                .max(pa.a.abs_diff(pb.a));
         if d != 0 {
             differing += 1;
             max_delta = max_delta.max(d);
         }
     }
-    DiffStats { differing_pixels: differing, max_channel_delta: max_delta }
+    DiffStats {
+        differing_pixels: differing,
+        max_channel_delta: max_delta,
+    }
 }
 
 /// Write a framebuffer as a binary PPM (`P6`).
@@ -433,7 +438,10 @@ pub fn read_ppm(path: &std::path::Path) -> std::io::Result<FrameBuffer> {
     let magic = next_token(&data, &mut pos)
         .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::InvalidData))?;
     if magic != "P6" {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "not a P6 PPM"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "not a P6 PPM",
+        ));
     }
     let width: u32 = next_token(&data, &mut pos)
         .and_then(|s| s.parse().ok())
@@ -448,14 +456,21 @@ pub fn read_ppm(path: &std::path::Path) -> std::io::Result<FrameBuffer> {
     }
     let count = (width as usize) * (height as usize);
     if data.len() < pos + count * 3 {
-        return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "truncated PPM"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "truncated PPM",
+        ));
     }
     let mut pixels = Vec::with_capacity(count);
     for i in 0..count {
         let o = pos + i * 3;
         pixels.push(Rgba8::new(data[o], data[o + 1], data[o + 2], 255));
     }
-    Ok(FrameBuffer { width, height, pixels })
+    Ok(FrameBuffer {
+        width,
+        height,
+        pixels,
+    })
 }
 
 /// Read the next whitespace-delimited token, skipping comments.
@@ -488,20 +503,35 @@ mod tests {
 
     #[test]
     fn normal_blend_composites_over() {
-        let out = blend_pixel(BlendMode::Normal, [1.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0], 1.0);
+        let out = blend_pixel(
+            BlendMode::Normal,
+            [1.0, 0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0, 1.0],
+            1.0,
+        );
         assert_eq!(out[0], 1.0);
         assert_eq!(out[2], 0.0);
     }
 
     #[test]
     fn multiply_blend_darkens() {
-        let out = blend_pixel(BlendMode::Multiply, [0.5, 0.5, 0.5, 1.0], [0.5, 0.5, 0.5, 1.0], 1.0);
+        let out = blend_pixel(
+            BlendMode::Multiply,
+            [0.5, 0.5, 0.5, 1.0],
+            [0.5, 0.5, 0.5, 1.0],
+            1.0,
+        );
         assert!((out[0] - 0.25).abs() < 1e-6);
     }
 
     #[test]
     fn screen_blend_lightens() {
-        let out = blend_pixel(BlendMode::Screen, [0.5, 0.5, 0.5, 1.0], [0.5, 0.5, 0.5, 1.0], 1.0);
+        let out = blend_pixel(
+            BlendMode::Screen,
+            [0.5, 0.5, 0.5, 1.0],
+            [0.5, 0.5, 0.5, 1.0],
+            1.0,
+        );
         assert!((out[0] - 0.75).abs() < 1e-6);
     }
 

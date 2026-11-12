@@ -19,14 +19,20 @@ impl VfrTable {
     /// Build a table from sorted timestamps.
     #[must_use]
     pub fn from_times(times: Vec<Time>) -> Self {
-        VfrTable { times, nominal: Timebase::default() }
+        VfrTable {
+            times,
+            nominal: Timebase::default(),
+        }
     }
 
     /// Build a table, sorting the timestamps.
     #[must_use]
     pub fn from_unsorted(mut times: Vec<Time>) -> Self {
         times.sort_unstable();
-        VfrTable { times, nominal: Timebase::default() }
+        VfrTable {
+            times,
+            nominal: Timebase::default(),
+        }
     }
 
     /// The nominal timebase.

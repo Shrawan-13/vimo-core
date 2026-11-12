@@ -133,7 +133,11 @@ impl Manifest {
     pub fn from_value(value: Value) -> VimoResult<Self> {
         let raw = match value {
             Value::Object(_) => serde_json::from_value::<RawManifest>(value).map_err(|e| {
-                VimoError::detailed(ErrorKind::Format, "manifest", format!("invalid manifest: {e}"))
+                VimoError::detailed(
+                    ErrorKind::Format,
+                    "manifest",
+                    format!("invalid manifest: {e}"),
+                )
             })?,
             Value::Array(items) => RawManifest {
                 manifest_version: 1,
@@ -173,7 +177,10 @@ impl Manifest {
         for eff in &raw.effects {
             effects.push(convert_effect(eff)?);
         }
-        Ok(Manifest { manifest_version: raw.manifest_version, effects })
+        Ok(Manifest {
+            manifest_version: raw.manifest_version,
+            effects,
+        })
     }
 
     /// Build an interning registry from this manifest.
@@ -258,7 +265,10 @@ fn convert_effect(raw: &RawEffect) -> VimoResult<EffectDesc> {
     Ok(EffectDesc {
         id: raw.id.clone(),
         name: raw.name.clone().unwrap_or_else(|| raw.id.clone()),
-        category: raw.category.clone().unwrap_or_else(|| "general".to_string()),
+        category: raw
+            .category
+            .clone()
+            .unwrap_or_else(|| "general".to_string()),
         version: raw.version,
         shader: raw.shader.clone(),
         params,
@@ -310,24 +320,37 @@ fn convert_value(
             let b = v.as_bool().ok_or_else(|| bad("expects a boolean"))?;
             Ok(ParamValue::Bool(b))
         }
-        ParamType::Color => parse_color(v).map(ParamValue::Color).ok_or_else(|| bad("expects a colour")),
+        ParamType::Color => parse_color(v)
+            .map(ParamValue::Color)
+            .ok_or_else(|| bad("expects a colour")),
         ParamType::Vec2 => {
-            let arr = v.as_array().ok_or_else(|| bad("expects a 2-element array"))?;
+            let arr = v
+                .as_array()
+                .ok_or_else(|| bad("expects a 2-element array"))?;
             if arr.len() != 2 {
                 return Err(bad("expects a 2-element array"));
             }
-            let x = arr[0].as_f64().ok_or_else(|| bad("expects numeric components"))?;
-            let y = arr[1].as_f64().ok_or_else(|| bad("expects numeric components"))?;
+            let x = arr[0]
+                .as_f64()
+                .ok_or_else(|| bad("expects numeric components"))?;
+            let y = arr[1]
+                .as_f64()
+                .ok_or_else(|| bad("expects numeric components"))?;
             Ok(ParamValue::Vec2(Vec2::new(x as f32, y as f32)))
         }
         ParamType::Vec3 => {
-            let arr = v.as_array().ok_or_else(|| bad("expects a 3-element array"))?;
+            let arr = v
+                .as_array()
+                .ok_or_else(|| bad("expects a 3-element array"))?;
             if arr.len() != 3 {
                 return Err(bad("expects a 3-element array"));
             }
             let mut c = [0.0f32; 3];
             for (i, item) in arr.iter().enumerate() {
-                c[i] = item.as_f64().ok_or_else(|| bad("expects numeric components"))? as f32;
+                c[i] = item
+                    .as_f64()
+                    .ok_or_else(|| bad("expects numeric components"))?
+                    as f32;
             }
             Ok(ParamValue::Vec3(Vec3::new(c[0], c[1], c[2])))
         }
@@ -496,14 +519,18 @@ mod tests {
     #[test]
     fn parses_hex_colors() {
         assert_eq!(parse_hex_color("#ff0000"), Some(Rgba8::new(255, 0, 0, 255)));
-        assert_eq!(parse_hex_color("#00ff0080"), Some(Rgba8::new(0, 255, 0, 128)));
+        assert_eq!(
+            parse_hex_color("#00ff0080"),
+            Some(Rgba8::new(0, 255, 0, 128))
+        );
         assert_eq!(parse_hex_color("#f00"), Some(Rgba8::new(255, 0, 0, 255)));
         assert_eq!(parse_hex_color("zzz"), None);
     }
 
     #[test]
     fn unknown_fields_are_ignored() {
-        let json = r#"{"manifest_version":2,"future_field":true,"effects":[{"id":"a","new_thing":1}]}"#;
+        let json =
+            r#"{"manifest_version":2,"future_field":true,"effects":[{"id":"a","new_thing":1}]}"#;
         let m = Manifest::parse_str(json).unwrap();
         assert_eq!(m.manifest_version, 2);
         assert_eq!(m.effects.len(), 1);

@@ -148,7 +148,10 @@ impl PlaybackAudio {
             let needed = written * channels;
             let slot_index = self.slots.len();
             if self.slots.len() <= slot_index {
-                self.slots.push(ClipSlot { samples: Vec::new(), gain: 1.0 });
+                self.slots.push(ClipSlot {
+                    samples: Vec::new(),
+                    gain: 1.0,
+                });
             }
             let slot = &mut self.slots[slot_index];
             if slot.samples.len() < needed {
@@ -193,7 +196,11 @@ impl PlaybackAudio {
 /// The source-media time a clip shows at `time`.
 fn source_time_for(clip: &vimo_project::model::Clip, time: Time) -> Time {
     let elapsed = time - clip.timeline.start;
-    let speed = if clip.speed.abs() < f32::EPSILON { 1.0 } else { clip.speed };
+    let speed = if clip.speed.abs() < f32::EPSILON {
+        1.0
+    } else {
+        clip.speed
+    };
     let delta = Time::from_secs_f64(elapsed.as_secs_f64() * speed as f64);
     if clip.forward {
         clip.source_in + delta
@@ -241,7 +248,13 @@ mod tests {
     fn mixing_produces_the_expected_level() {
         let mut audio = PlaybackAudio::new(48_000, 2);
         let mut block = AudioBlock::new(2, 48_000);
-        audio.render(&project(), &ConstantSource { value: 0.5 }, Time::ZERO, 256, &mut block);
+        audio.render(
+            &project(),
+            &ConstantSource { value: 0.5 },
+            Time::ZERO,
+            256,
+            &mut block,
+        );
         assert_eq!(block.frame_count(), 256);
         assert!((block.samples[0] - 0.5).abs() < 1e-6);
     }
@@ -252,7 +265,13 @@ mod tests {
         p.clips[0].muted = true;
         let mut audio = PlaybackAudio::new(48_000, 2);
         let mut block = AudioBlock::new(2, 48_000);
-        audio.render(&p, &ConstantSource { value: 0.5 }, Time::ZERO, 64, &mut block);
+        audio.render(
+            &p,
+            &ConstantSource { value: 0.5 },
+            Time::ZERO,
+            64,
+            &mut block,
+        );
         assert_eq!(block.samples[0], 0.0);
     }
 
@@ -273,8 +292,18 @@ mod tests {
         p.tracks[0].solo = true;
         let mut audio = PlaybackAudio::new(48_000, 2);
         let mut block = AudioBlock::new(2, 48_000);
-        audio.render(&p, &ConstantSource { value: 0.5 }, Time::ZERO, 64, &mut block);
+        audio.render(
+            &p,
+            &ConstantSource { value: 0.5 },
+            Time::ZERO,
+            64,
+            &mut block,
+        );
         // Two clips would sum to 1.0; solo leaves only one.
-        assert!((block.samples[0] - 0.5).abs() < 1e-6, "got {}", block.samples[0]);
+        assert!(
+            (block.samples[0] - 0.5).abs() < 1e-6,
+            "got {}",
+            block.samples[0]
+        );
     }
 }

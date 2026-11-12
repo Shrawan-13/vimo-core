@@ -108,8 +108,7 @@ pub enum TrackKind {
 }
 
 /// A blend mode used when a clip or layer is composited.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum BlendMode {
     /// Source over destination.
     #[default]
@@ -151,7 +150,6 @@ pub enum BlendMode {
     /// Luminosity (non-separable).
     Luminosity,
 }
-
 
 impl BlendMode {
     /// All blend modes, in a stable order.
@@ -341,22 +339,15 @@ impl Transform {
         let (px, py) = (self.position.x, self.position.y);
 
         // T(-anchor) * R * S * T(anchor) * T(position)
-        let rot = vimo_foundation::math::Mat3::affine_2d(
-            Vec2::new(sx, sy),
-            self.rotation,
-            Vec2::ZERO,
-        );
+        let rot =
+            vimo_foundation::math::Mat3::affine_2d(Vec2::new(sx, sy), self.rotation, Vec2::ZERO);
         // Pivot compensation: after scaling around the anchor the anchor drifts.
         let pivot = vimo_foundation::math::Mat3::affine_2d(
             Vec2::ONE,
             0.0,
             Vec2::new(cx - cx * sx, cy - cy * sy),
         );
-        let offset = vimo_foundation::math::Mat3::affine_2d(
-            Vec2::ONE,
-            0.0,
-            Vec2::new(px, py),
-        );
+        let offset = vimo_foundation::math::Mat3::affine_2d(Vec2::ONE, 0.0, Vec2::new(px, py));
         offset.mul(&pivot).mul(&rot)
     }
 }
@@ -434,8 +425,15 @@ impl Clip {
     #[must_use]
     pub fn source_range(&self) -> TimeRange {
         let dur = self.duration();
-        let speed = if self.speed.abs() < f32::EPSILON { 1.0 } else { self.speed };
-        TimeRange::new(self.source_in, self.source_in + Time::from_secs_f64(dur.as_secs_f64() * speed as f64))
+        let speed = if self.speed.abs() < f32::EPSILON {
+            1.0
+        } else {
+            self.speed
+        };
+        TimeRange::new(
+            self.source_in,
+            self.source_in + Time::from_secs_f64(dur.as_secs_f64() * speed as f64),
+        )
     }
 
     /// Trim the clip to `range`, keeping the picture in sync.
@@ -455,13 +453,21 @@ impl Clip {
         // How much of the head was removed, in source time.
         let head = new_start - old_start;
         if head > Time::ZERO {
-            let speed = if clip.speed.abs() < f32::EPSILON { 1.0 } else { clip.speed };
+            let speed = if clip.speed.abs() < f32::EPSILON {
+                1.0
+            } else {
+                clip.speed
+            };
             let advance = Time::from_secs_f64(head.as_secs_f64() * speed as f64);
             clip.source_in += advance;
         }
 
         // The clip may not run past the end of the source.
-        let speed = if clip.speed.abs() < f32::EPSILON { 1.0 } else { clip.speed };
+        let speed = if clip.speed.abs() < f32::EPSILON {
+            1.0
+        } else {
+            clip.speed
+        };
         let max_duration = Time::from_secs_f64(source_duration.as_secs_f64() / speed as f64);
         let duration = (new_end - new_start).min(max_duration);
         clip.timeline = TimeRange::new(new_start, new_start + duration);
@@ -477,10 +483,15 @@ impl Clip {
         if at <= self.timeline.start || at >= self.timeline.end {
             return None;
         }
-        let speed = if self.speed.abs() < f32::EPSILON { 1.0 } else { self.speed };
+        let speed = if self.speed.abs() < f32::EPSILON {
+            1.0
+        } else {
+            self.speed
+        };
         let mut second = self.clone();
         second.timeline = TimeRange::new(at, self.timeline.end);
-        second.source_in = self.source_in + Time::from_secs_f64((at - self.timeline.start).as_secs_f64() * speed as f64);
+        second.source_in = self.source_in
+            + Time::from_secs_f64((at - self.timeline.start).as_secs_f64() * speed as f64);
         Some(second)
     }
 }
@@ -606,7 +617,12 @@ pub struct Transition {
 impl Transition {
     /// A cross dissolve between two clips.
     #[must_use]
-    pub fn cross_dissolve(track: TrackId, from_clip: ClipId, to_clip: ClipId, duration: Time) -> Self {
+    pub fn cross_dissolve(
+        track: TrackId,
+        from_clip: ClipId,
+        to_clip: ClipId,
+        duration: Time,
+    ) -> Self {
         Transition {
             kind: TransitionKind::CrossDissolve,
             track,
@@ -734,8 +750,14 @@ mod tests {
             vimo_foundation::time::Time::from_secs(30),
         );
         assert_eq!(trimmed.source_in, vimo_foundation::time::Time::from_secs(4));
-        assert_eq!(trimmed.timeline.start, vimo_foundation::time::Time::from_secs(7));
-        assert_eq!(trimmed.duration(), vimo_foundation::time::Time::from_secs(3));
+        assert_eq!(
+            trimmed.timeline.start,
+            vimo_foundation::time::Time::from_secs(7)
+        );
+        assert_eq!(
+            trimmed.duration(),
+            vimo_foundation::time::Time::from_secs(3)
+        );
     }
 
     #[test]
@@ -756,7 +778,10 @@ mod tests {
             vimo_foundation::time::Time::from_secs(30),
         );
         assert_eq!(trimmed.source_in, vimo_foundation::time::Time::from_secs(2));
-        assert_eq!(trimmed.duration(), vimo_foundation::time::Time::from_secs(3));
+        assert_eq!(
+            trimmed.duration(),
+            vimo_foundation::time::Time::from_secs(3)
+        );
     }
 
     #[test]
@@ -776,7 +801,10 @@ mod tests {
             ),
             vimo_foundation::time::Time::from_secs(10),
         );
-        assert_eq!(trimmed.duration(), vimo_foundation::time::Time::from_secs(10));
+        assert_eq!(
+            trimmed.duration(),
+            vimo_foundation::time::Time::from_secs(10)
+        );
     }
 
     #[test]
@@ -793,9 +821,14 @@ mod tests {
             .split_at(vimo_foundation::time::Time::from_secs(7))
             .expect("a split inside the clip");
         assert_eq!(second.source_in, vimo_foundation::time::Time::from_secs(4));
-        assert_eq!(second.timeline.start, vimo_foundation::time::Time::from_secs(7));
+        assert_eq!(
+            second.timeline.start,
+            vimo_foundation::time::Time::from_secs(7)
+        );
         assert_eq!(second.duration(), vimo_foundation::time::Time::from_secs(3));
-        assert!(clip.split_at(vimo_foundation::time::Time::from_secs(5)).is_none());
+        assert!(clip
+            .split_at(vimo_foundation::time::Time::from_secs(5))
+            .is_none());
     }
 
     #[test]

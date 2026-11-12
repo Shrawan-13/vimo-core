@@ -67,7 +67,11 @@ impl TextureRef {
     /// An unresolved texture request.
     #[must_use]
     pub const fn unresolved(clip: vimo_project::model::ClipId, source_time: Time) -> Self {
-        TextureRef { clip, source_time, texture: TextureId::NONE }
+        TextureRef {
+            clip,
+            source_time,
+            texture: TextureId::NONE,
+        }
     }
 }
 
@@ -198,7 +202,8 @@ impl FramePlan {
             .iter()
             .map(|s| match s {
                 DrawStep::Composite { effects, .. } | DrawStep::Transition { effects, .. } => {
-                    core::mem::size_of::<DrawStep>() + effects.capacity() * core::mem::size_of::<EffectIndex>()
+                    core::mem::size_of::<DrawStep>()
+                        + effects.capacity() * core::mem::size_of::<EffectIndex>()
                 }
                 DrawStep::Clear { .. } => core::mem::size_of::<DrawStep>(),
             })
@@ -213,7 +218,9 @@ mod tests {
     #[test]
     fn reset_clears_steps_but_keeps_capacity() {
         let mut p = FramePlan::new();
-        p.steps.push(DrawStep::Clear { color: Rgba8::BLACK });
+        p.steps.push(DrawStep::Clear {
+            color: Rgba8::BLACK,
+        });
         let cap = p.steps.capacity();
         p.reset(Time::ZERO, 100, 100, 1.0, true);
         assert!(p.steps.is_empty());

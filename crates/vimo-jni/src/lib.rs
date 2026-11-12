@@ -124,7 +124,9 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeExecute(
     let text_bytes: Vec<u8> = if text.is_null() {
         Vec::new()
     } else {
-        env.get_string(&text).map(|s| s.to_bytes().to_vec()).unwrap_or_default()
+        env.get_string(&text)
+            .map(|s| s.to_bytes().to_vec())
+            .unwrap_or_default()
     };
     let float_values: Vec<f32> = if floats.is_null() {
         Vec::new()
@@ -176,7 +178,11 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativePollEvent(
     }
     let mut events = [VimoEvent::default(); 1];
     let count = unsafe {
-        vimo_engine_poll_events(address as *mut vimo_core::VimoEngine, events.as_mut_ptr(), 1)
+        vimo_engine_poll_events(
+            address as *mut vimo_core::VimoEngine,
+            events.as_mut_ptr(),
+            1,
+        )
     };
     if count <= 0 {
         return std::ptr::null_mut();
@@ -191,9 +197,8 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativePollEvent(
     let message: JString = if event.message.is_null() || event.message_len == 0 {
         JString::from(JObject::null())
     } else {
-        let bytes = unsafe {
-            std::slice::from_raw_parts(event.message, event.message_len as usize)
-        };
+        let bytes =
+            unsafe { std::slice::from_raw_parts(event.message, event.message_len as usize) };
         let text = String::from_utf8_lossy(bytes);
         match env.new_string(text.as_ref()) {
             Ok(s) => s,
@@ -233,7 +238,11 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeSnapshot(
     }
     // Ask for the size, then for the content.
     let needed = unsafe {
-        vimo_engine_snapshot(address as *mut vimo_core::VimoEngine, std::ptr::null_mut(), 0)
+        vimo_engine_snapshot(
+            address as *mut vimo_core::VimoEngine,
+            std::ptr::null_mut(),
+            0,
+        )
     };
     if needed <= 0 {
         return std::ptr::null_mut();

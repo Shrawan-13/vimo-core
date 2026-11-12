@@ -16,8 +16,11 @@ pub type VimoAudio = c_void;
 
 extern "C" {
     /// `vimo_audio_create`
-    fn vimo_audio_create(sample_rate: i32, channels: i32, frames_per_callback: i32)
-        -> *mut VimoAudio;
+    fn vimo_audio_create(
+        sample_rate: i32,
+        channels: i32,
+        frames_per_callback: i32,
+    ) -> *mut VimoAudio;
     /// `vimo_audio_destroy`
     fn vimo_audio_destroy(audio: *mut VimoAudio);
     /// `vimo_audio_start`
@@ -142,7 +145,9 @@ impl AudioOutput for OboeAudioOutput {
 
     fn push(&mut self, block: &AudioBlock) -> VimoResult<()> {
         if !self.running {
-            return Err(vimo_foundation::error::invalid_state("oboe: the stream is not running"));
+            return Err(vimo_foundation::error::invalid_state(
+                "oboe: the stream is not running",
+            ));
         }
         let frames = block.frame_count() as i32;
         if frames <= 0 {

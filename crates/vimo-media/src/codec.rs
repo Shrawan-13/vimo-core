@@ -140,7 +140,10 @@ impl PixelFormat {
     /// Whether the format can be sampled directly as RGBA on the GPU.
     #[must_use]
     pub const fn is_gpu_sampleable(self) -> bool {
-        matches!(self, PixelFormat::Rgba8888 | PixelFormat::Bgra8888 | PixelFormat::Surface)
+        matches!(
+            self,
+            PixelFormat::Rgba8888 | PixelFormat::Bgra8888 | PixelFormat::Surface
+        )
     }
 }
 
@@ -257,7 +260,11 @@ impl AudioFormat {
     /// A format description.
     #[must_use]
     pub const fn new(sample_rate: u32, channels: u16) -> Self {
-        AudioFormat { sample_rate, channels, codec: AudioCodec::Pcm }
+        AudioFormat {
+            sample_rate,
+            channels,
+            codec: AudioCodec::Pcm,
+        }
     }
 
     /// Bytes per second of audio.
@@ -335,8 +342,14 @@ mod tests {
 
     #[test]
     fn frame_sizes_are_correct() {
-        assert_eq!(PixelFormat::Yuv420.frame_size(1920, 1080), 1920 * 1080 * 3 / 2);
-        assert_eq!(PixelFormat::Rgba8888.frame_size(1920, 1080), 1920 * 1080 * 4);
+        assert_eq!(
+            PixelFormat::Yuv420.frame_size(1920, 1080),
+            1920 * 1080 * 3 / 2
+        );
+        assert_eq!(
+            PixelFormat::Rgba8888.frame_size(1920, 1080),
+            1920 * 1080 * 4
+        );
         assert_eq!(PixelFormat::P010.frame_size(1920, 1080), 1920 * 1080 * 3);
     }
 

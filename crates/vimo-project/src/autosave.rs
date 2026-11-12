@@ -53,7 +53,11 @@ impl AutosaveStore {
     /// Create a store rooted at `dir`.
     #[must_use]
     pub fn new(dir: impl Into<PathBuf>) -> Self {
-        AutosaveStore { dir: dir.into(), max_snapshots: DEFAULT_MAX_SNAPSHOTS, sequence: 0 }
+        AutosaveStore {
+            dir: dir.into(),
+            max_snapshots: DEFAULT_MAX_SNAPSHOTS,
+            sequence: 0,
+        }
     }
 
     /// Set how many snapshots to keep.
@@ -83,7 +87,11 @@ impl AutosaveStore {
     /// Write a snapshot of `project`.
     ///
     /// The write is atomic: on return the snapshot is durable.
-    pub fn write_snapshot(&self, project: &Project, registry: &EffectRegistry) -> VimoResult<PathBuf> {
+    pub fn write_snapshot(
+        &self,
+        project: &Project,
+        registry: &EffectRegistry,
+    ) -> VimoResult<PathBuf> {
         self.ensure_dir()?;
         let bytes = codec::write(project, registry, codec::CURRENT_VERSION)?;
 
@@ -180,7 +188,11 @@ impl AutosaveStore {
                 continue;
             };
             let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-            out.push(SnapshotInfo { path, created_unix_ms: stamp, size });
+            out.push(SnapshotInfo {
+                path,
+                created_unix_ms: stamp,
+                size,
+            });
         }
         out.sort_by_key(|s| s.created_unix_ms);
         Ok(out)
@@ -211,7 +223,10 @@ impl AutosaveStore {
     }
 
     /// Load the newest snapshot.
-    pub fn load_latest(&self, registry: &EffectRegistry) -> VimoResult<Option<(Project, LoadReport)>> {
+    pub fn load_latest(
+        &self,
+        registry: &EffectRegistry,
+    ) -> VimoResult<Option<(Project, LoadReport)>> {
         let Some(info) = self.latest()? else {
             return Ok(None);
         };

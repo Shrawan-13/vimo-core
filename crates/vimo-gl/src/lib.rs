@@ -32,9 +32,9 @@ pub mod renderer;
 pub mod shaders;
 
 pub use api::{
-    BufferId, BufferTarget, Capability, ClearMask, DrawMode, FramebufferAttachment,
-    FramebufferId, FramebufferTarget, GlApi, GlError, ProgramId, ShaderId, ShaderKind,
-    TextureFormat, TextureId, TextureParam, TextureTarget, UniformLocation, VertexArrayId,
+    BufferId, BufferTarget, Capability, ClearMask, DrawMode, FramebufferAttachment, FramebufferId,
+    FramebufferTarget, GlApi, GlError, ProgramId, ShaderId, ShaderKind, TextureFormat, TextureId,
+    TextureParam, TextureTarget, UniformLocation, VertexArrayId,
 };
 pub use library::ShaderLibrary;
 pub use mock::{Call, MockGl};

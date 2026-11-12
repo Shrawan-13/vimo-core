@@ -7,12 +7,12 @@
 use std::ffi::CString;
 
 use vimo_foundation::error::{ErrorKind, VimoError, VimoResult};
+use vimo_gl::api::consts;
 use vimo_gl::api::{
     BufferId, BufferTarget, Capability, ClearMask, DrawMode, FramebufferAttachment, FramebufferId,
     FramebufferTarget, GlApi, GlError, ProgramId, ShaderId, ShaderKind, TextureFormat, TextureId,
     TextureParam, TextureTarget, UniformLocation, VertexArrayId,
 };
-use vimo_gl::api::consts;
 
 use crate::ffi::*;
 
@@ -70,18 +70,19 @@ impl EglRenderer {
             }
 
             let context_attributes: [EGLint; 3] = [EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE];
-            let context = eglCreateContext(
-                display,
-                config,
-                EGL_NO_CONTEXT,
-                context_attributes.as_ptr(),
-            );
+            let context =
+                eglCreateContext(display, config, EGL_NO_CONTEXT, context_attributes.as_ptr());
             if context.is_null() {
                 return Err(graphics_error("egl: could not create the context"));
             }
 
-            let surface_attributes: [EGLint; 5] =
-                [EGL_WIDTH, width as EGLint, EGL_HEIGHT, height as EGLint, EGL_NONE];
+            let surface_attributes: [EGLint; 5] = [
+                EGL_WIDTH,
+                width as EGLint,
+                EGL_HEIGHT,
+                height as EGLint,
+                EGL_NONE,
+            ];
             let surface = eglCreateWindowSurface(
                 display,
                 config,
@@ -115,8 +116,16 @@ impl EglRenderer {
             let version = eglQueryString(display, EGL_VERSION);
             format!(
                 "{} {}",
-                if vendor.is_null() { "unknown".to_string() } else { CStr::from_ptr(vendor).to_string_lossy().into_owned() },
-                if version.is_null() { "unknown".to_string() } else { CStr::from_ptr(version).to_string_lossy().into_owned() }
+                if vendor.is_null() {
+                    "unknown".to_string()
+                } else {
+                    CStr::from_ptr(vendor).to_string_lossy().into_owned()
+                },
+                if version.is_null() {
+                    "unknown".to_string()
+                } else {
+                    CStr::from_ptr(version).to_string_lossy().into_owned()
+                }
             )
         }
     }
@@ -163,7 +172,7 @@ impl GlApi for EglRenderer {
     fn create_shader(&mut self, kind: ShaderKind, source: &str) -> VimoResult<ShaderId> {
         unsafe {
             let type_ = match kind {
-                ShaderKind::Vertex => 0x8B31, // GL_VERTEX_SHADER
+                ShaderKind::Vertex => 0x8B31,   // GL_VERTEX_SHADER
                 ShaderKind::Fragment => 0x8B30, // GL_FRAGMENT_SHADER
             };
             let shader = glCreateShader(type_);
@@ -296,7 +305,13 @@ impl GlApi for EglRenderer {
         unsafe { glActiveTexture(GL_TEXTURE0 + unit) }
     }
 
-    fn tex_image_2d(&mut self, _target: TextureTarget, width: u32, height: u32, format: TextureFormat) {
+    fn tex_image_2d(
+        &mut self,
+        _target: TextureTarget,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+    ) {
         unsafe {
             let internal = match format {
                 TextureFormat::Rgba8 => 0x8058, // GL_RGBA8
@@ -448,13 +463,7 @@ impl GlApi for EglRenderer {
             let attachment = match attachment {
                 FramebufferAttachment::Color0 => consts::COLOR_ATTACHMENT0,
             };
-            glFramebufferTexture2D(
-                consts::FRAMEBUFFER,
-                attachment,
-                GL_TEXTURE_2D,
-                texture.0,
-                0,
-            );
+            glFramebufferTexture2D(consts::FRAMEBUFFER, attachment, GL_TEXTURE_2D, texture.0, 0);
         }
     }
 
@@ -520,14 +529,7 @@ impl GlApi for EglRenderer {
     }
 
     fn color_mask(&mut self, r: bool, g: bool, b: bool, a: bool) {
-        unsafe {
-            glColorMask(
-                i32::from(r),
-                i32::from(g),
-                i32::from(b),
-                i32::from(a),
-            )
-        }
+        unsafe { glColorMask(i32::from(r), i32::from(g), i32::from(b), i32::from(a)) }
     }
 
     fn draw_arrays(&mut self, mode: DrawMode, first: i32, count: i32) {
@@ -572,7 +574,12 @@ unsafe fn shader_log(shader: ShaderId) -> String {
         return String::new();
     }
     let mut buffer = vec![0u8; length as usize];
-    glGetShaderInfoLog(shader.0, length, core::ptr::null_mut(), buffer.as_mut_ptr() as *mut core::ffi::c_char);
+    glGetShaderInfoLog(
+        shader.0,
+        length,
+        core::ptr::null_mut(),
+        buffer.as_mut_ptr() as *mut core::ffi::c_char,
+    );
     let end = buffer.iter().position(|b| *b == 0).unwrap_or(buffer.len());
     String::from_utf8_lossy(&buffer[..end]).into_owned()
 }
@@ -585,14 +592,23 @@ unsafe fn program_log(program: ProgramId) -> String {
         return String::new();
     }
     let mut buffer = vec![0u8; length as usize];
-    glGetProgramInfoLog(program.0, length, core::ptr::null_mut(), buffer.as_mut_ptr() as *mut core::ffi::c_char);
+    glGetProgramInfoLog(
+        program.0,
+        length,
+        core::ptr::null_mut(),
+        buffer.as_mut_ptr() as *mut core::ffi::c_char,
+    );
     let end = buffer.iter().position(|b| *b == 0).unwrap_or(buffer.len());
     String::from_utf8_lossy(&buffer[..end]).into_owned()
 }
 
 /// A graphics error.
 fn graphics_error(context: &'static str) -> VimoError {
-    VimoError::detailed(ErrorKind::Graphics, context, "the driver reported a failure")
+    VimoError::detailed(
+        ErrorKind::Graphics,
+        context,
+        "the driver reported a failure",
+    )
 }
 
 /// `CStr` helper.

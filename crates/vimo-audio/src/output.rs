@@ -23,7 +23,12 @@ impl AudioBlock {
     /// An empty block.
     #[must_use]
     pub fn new(channels: u16, sample_rate: u32) -> Self {
-        AudioBlock { samples: Vec::new(), channels, sample_rate, start: Time::ZERO }
+        AudioBlock {
+            samples: Vec::new(),
+            channels,
+            sample_rate,
+            start: Time::ZERO,
+        }
     }
 
     /// The number of sample frames.
@@ -75,7 +80,12 @@ impl NullAudioOutput {
     /// A sink with the given format.
     #[must_use]
     pub fn new(sample_rate: u32, channels: u16) -> Self {
-        NullAudioOutput { sample_rate, channels, frames: 256, pushed: 0 }
+        NullAudioOutput {
+            sample_rate,
+            channels,
+            frames: 256,
+            pushed: 0,
+        }
     }
 
     /// The number of blocks that were pushed.

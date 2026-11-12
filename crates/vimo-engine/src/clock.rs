@@ -8,8 +8,8 @@
 //! The time source is injectable so that tests can drive the clock
 //! deterministically.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use vimo_foundation::time::Time;
@@ -47,7 +47,9 @@ impl MonotonicClock {
     /// A new monotonic clock.
     #[must_use]
     pub fn new() -> Self {
-        MonotonicClock { start: Instant::now() }
+        MonotonicClock {
+            start: Instant::now(),
+        }
     }
 }
 
@@ -355,7 +357,10 @@ mod tests {
         assert_eq!(c.tick(), Time::from_millis(2500));
         src.advance(Duration::from_millis(1000));
         let pos = c.tick();
-        assert!(pos >= Time::from_secs(2) && pos < Time::from_secs(3), "pos={pos:?}");
+        assert!(
+            pos >= Time::from_secs(2) && pos < Time::from_secs(3),
+            "pos={pos:?}"
+        );
     }
 
     #[test]

@@ -56,7 +56,10 @@ fn random_bytes_never_panic() {
 fn truncated_files_never_panic() {
     let reg = registry();
     let mut project = vimo_project::Project::new();
-    project.assets.push(vimo_project::model::Asset::video("a", vimo_foundation::time::Time::from_secs(5)));
+    project.assets.push(vimo_project::model::Asset::video(
+        "a",
+        vimo_foundation::time::Time::from_secs(5),
+    ));
     project.tracks.push(vimo_project::model::Track::new(
         "V1",
         vimo_project::model::TrackKind::Video,
@@ -72,7 +75,10 @@ fn truncated_files_never_panic() {
 fn corrupted_files_never_panic() {
     let reg = registry();
     let mut project = vimo_project::Project::new();
-    project.assets.push(vimo_project::model::Asset::video("a", vimo_foundation::time::Time::from_secs(5)));
+    project.assets.push(vimo_project::model::Asset::video(
+        "a",
+        vimo_foundation::time::Time::from_secs(5),
+    ));
     project.tracks.push(vimo_project::model::Track::new(
         "V1",
         vimo_project::model::TrackKind::Video,
@@ -108,7 +114,10 @@ fn absurd_sections_are_rejected() {
 fn every_version_roundtrips() {
     let reg = registry();
     let mut project = vimo_project::Project::new();
-    project.assets.push(vimo_project::model::Asset::video("a", vimo_foundation::time::Time::from_secs(5)));
+    project.assets.push(vimo_project::model::Asset::video(
+        "a",
+        vimo_foundation::time::Time::from_secs(5),
+    ));
     project.tracks.push(vimo_project::model::Track::new(
         "V1",
         vimo_project::model::TrackKind::Video,

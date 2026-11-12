@@ -13,7 +13,9 @@ use vimo_gl::{GlRenderer, NoShaders, ShaderSourceProvider};
 use vimo_manifest::{EffectDesc, EffectRegistry, EffectTypeId, ParamDesc, ParamType, ParamValue};
 use vimo_project::model::BlendMode;
 use vimo_render::uniforms::{BuiltinUniforms, UniformArena, UniformBlock, UniformRange};
-use vimo_render::{DrawStep, EffectIndex, FrameEffect, FramePlan, LayerIndex, TextureId, TextureRef};
+use vimo_render::{
+    DrawStep, EffectIndex, FrameEffect, FramePlan, LayerIndex, TextureId, TextureRef,
+};
 
 const UNIFORM_NAMES: &[&str] = &[
     "u_transform",
@@ -35,7 +37,10 @@ struct FixedShaders {
 }
 
 impl ShaderSourceProvider for FixedShaders {
-    fn fragment_source(&mut self, _effect_type: EffectTypeId) -> vimo_foundation::VimoResult<String> {
+    fn fragment_source(
+        &mut self,
+        _effect_type: EffectTypeId,
+    ) -> vimo_foundation::VimoResult<String> {
         Ok(self.source.clone())
     }
 }
@@ -71,10 +76,16 @@ fn simple_plan(texture: TextureId, blend: BlendMode, opacity: f32) -> FramePlan 
     let mut plan = FramePlan::new();
     plan.width = 640;
     plan.height = 360;
-    plan.steps.push(DrawStep::Clear { color: Rgba8::BLACK });
+    plan.steps.push(DrawStep::Clear {
+        color: Rgba8::BLACK,
+    });
     plan.steps.push(DrawStep::Composite {
         layer: LayerIndex(0),
-        source: TextureRef { clip: 0, source_time: Time::ZERO, texture },
+        source: TextureRef {
+            clip: 0,
+            source_time: Time::ZERO,
+            texture,
+        },
         transform: Mat3::IDENTITY,
         src_rect: Rect::FULL,
         dst_rect: Rect::FULL,
@@ -98,26 +109,39 @@ fn a_frame_clears_and_draws_once() {
         handle.calls_of(|c| matches!(c, Call::Clear(_))).len() == 1,
         "the clear must happen"
     );
-    assert_eq!(handle.bound_textures(), vec![TextureId(7)], "the source must be bound");
+    assert_eq!(
+        handle.bound_textures(),
+        vec![TextureId(7)],
+        "the source must be bound"
+    );
 }
 
 #[test]
 fn the_blend_factors_follow_the_blend_mode() {
     let cases = [
-        (BlendMode::Normal, (consts::ONE, consts::ONE_MINUS_SRC_ALPHA)),
+        (
+            BlendMode::Normal,
+            (consts::ONE, consts::ONE_MINUS_SRC_ALPHA),
+        ),
         (BlendMode::Multiply, (consts::DST_COLOR, consts::ZERO)),
-        (BlendMode::Screen, (consts::ONE, consts::ONE_MINUS_SRC_COLOR)),
+        (
+            BlendMode::Screen,
+            (consts::ONE, consts::ONE_MINUS_SRC_COLOR),
+        ),
         (BlendMode::Add, (consts::ONE, consts::ONE)),
         (BlendMode::Lighten, (consts::MAX, consts::MAX)),
     ];
     for (mode, expected) in cases {
         let mock = MockGl::with_uniforms(UNIFORM_NAMES);
         let handle = mock.clone();
-        let mut renderer = GlRenderer::new(Box::new(mock), EffectRegistry::new(), 640, 360).unwrap();
+        let mut renderer =
+            GlRenderer::new(Box::new(mock), EffectRegistry::new(), 640, 360).unwrap();
         let plan = simple_plan(TextureId(1), mode, 1.0);
         renderer.draw(&plan, &mut NoShaders).unwrap();
 
-        let factors = handle.last_blend_func().expect("a blend function must be set");
+        let factors = handle
+            .last_blend_func()
+            .expect("a blend function must be set");
         assert_eq!(
             (factors.0, factors.1),
             expected,
@@ -133,7 +157,9 @@ fn non_separable_modes_fall_back_to_over() {
     let mut renderer = GlRenderer::new(Box::new(mock), EffectRegistry::new(), 640, 360).unwrap();
     let plan = simple_plan(TextureId(1), BlendMode::Hue, 1.0);
     renderer.draw(&plan, &mut NoShaders).unwrap();
-    let factors = handle.last_blend_func().expect("a blend function must be set");
+    let factors = handle
+        .last_blend_func()
+        .expect("a blend function must be set");
     assert_eq!(factors.0, consts::ONE);
     assert_eq!(factors.1, consts::ONE_MINUS_SRC_ALPHA);
 }
@@ -158,7 +184,12 @@ fn the_final_pass_flips_the_image() {
     // The final pass composites onto the default framebuffer and flips.
     assert_eq!(handle.uniform_value("u_flip_y"), Some(1.0));
     assert!(
-        handle.bound_framebuffers().last().copied().flatten().is_none(),
+        handle
+            .bound_framebuffers()
+            .last()
+            .copied()
+            .flatten()
+            .is_none(),
         "the last bound framebuffer must be the default one"
     );
 }
@@ -188,10 +219,16 @@ fn an_effect_chain_uses_offscreen_targets() {
         range,
     });
 
-    plan.steps.push(DrawStep::Clear { color: Rgba8::BLACK });
+    plan.steps.push(DrawStep::Clear {
+        color: Rgba8::BLACK,
+    });
     plan.steps.push(DrawStep::Composite {
         layer: LayerIndex(0),
-        source: TextureRef { clip: 0, source_time: Time::ZERO, texture: TextureId(1) },
+        source: TextureRef {
+            clip: 0,
+            source_time: Time::ZERO,
+            texture: TextureId(1),
+        },
         transform: Mat3::IDENTITY,
         src_rect: Rect::FULL,
         dst_rect: Rect::FULL,
@@ -200,7 +237,9 @@ fn an_effect_chain_uses_offscreen_targets() {
         effects: vec![EffectIndex(0)],
     });
 
-    let mut shaders = FixedShaders { source: "void main() {}".to_string() };
+    let mut shaders = FixedShaders {
+        source: "void main() {}".to_string(),
+    };
     renderer.draw(&plan, &mut shaders).unwrap();
 
     // One framebuffer for the source pass and one for the effect pass.
@@ -233,7 +272,11 @@ fn the_effect_program_is_compiled_once() {
     });
     plan.steps.push(DrawStep::Composite {
         layer: LayerIndex(0),
-        source: TextureRef { clip: 0, source_time: Time::ZERO, texture: TextureId(1) },
+        source: TextureRef {
+            clip: 0,
+            source_time: Time::ZERO,
+            texture: TextureId(1),
+        },
         transform: Mat3::IDENTITY,
         src_rect: Rect::FULL,
         dst_rect: Rect::FULL,
@@ -242,7 +285,9 @@ fn the_effect_program_is_compiled_once() {
         effects: vec![EffectIndex(0)],
     });
 
-    let mut shaders = FixedShaders { source: "void main() {}".to_string() };
+    let mut shaders = FixedShaders {
+        source: "void main() {}".to_string(),
+    };
     renderer.draw(&plan, &mut shaders).unwrap();
     let after_first = handle
         .calls_of(|c| matches!(c, Call::CreateProgram { .. }))

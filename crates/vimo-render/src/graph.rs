@@ -204,7 +204,9 @@ impl LayerTable {
     /// Find the transition covering `time` on `track`.
     fn transition_at(&self, track: u32, time: Time) -> Option<TransitionSlot> {
         let list = self.transitions.get(track as usize)?;
-        list.iter().find(|t| time >= t.start && time < t.end).copied()
+        list.iter()
+            .find(|t| time >= t.start && time < t.end)
+            .copied()
     }
 }
 
@@ -374,7 +376,8 @@ impl RenderGraph {
         if fingerprint != self.fingerprint {
             self.table = LayerTable::build(&self.project);
             self.states.clear();
-            self.states.resize(self.table.slots.len(), LayerState::default());
+            self.states
+                .resize(self.table.slots.len(), LayerState::default());
             self.fingerprint = fingerprint;
             self.stats.rebuilds += 1;
             self.last_valid = false;
@@ -388,8 +391,11 @@ impl RenderGraph {
 
         let width = ((self.width as f32 * self.scale).round() as u32).max(1);
         let height = ((self.height as f32 * self.scale).round() as u32).max(1);
-        self.plan.reset(time, width, height, self.scale, self.preview);
-        self.plan.steps.push(DrawStep::Clear { color: self.project.meta.background });
+        self.plan
+            .reset(time, width, height, self.scale, self.preview);
+        self.plan.steps.push(DrawStep::Clear {
+            color: self.project.meta.background,
+        });
 
         // 3. Walk the tracks bottom to top.
         let track_count = self.project.tracks.len() as u32;
@@ -431,7 +437,12 @@ impl RenderGraph {
     }
 
     /// Emit a composite step for one clip.
-    fn emit_layer(&mut self, slot: ClipSlot, time: Time, layer_index: LayerIndex) -> VimoResult<()> {
+    fn emit_layer(
+        &mut self,
+        slot: ClipSlot,
+        time: Time,
+        layer_index: LayerIndex,
+    ) -> VimoResult<()> {
         let state_index = slot.clip as usize;
         // Refresh the layer state if the clip changed.
         {
@@ -604,7 +615,10 @@ impl RenderGraph {
     #[must_use]
     pub fn effect_type_at(&self, clip: ClipId, chain_index: u32) -> Option<EffectTypeId> {
         let state = self.states.get(clip as usize)?;
-        state.effects.get(chain_index as usize).map(|s| s.effect_type)
+        state
+            .effects
+            .get(chain_index as usize)
+            .map(|s| s.effect_type)
     }
 }
 
@@ -654,7 +668,11 @@ fn build_effect_uniforms(
 #[must_use]
 pub fn source_time_for(clip: &vimo_project::model::Clip, time: Time) -> Time {
     let elapsed = time - clip.timeline.start;
-    let speed = if clip.speed.abs() < f32::EPSILON { 1.0 } else { clip.speed };
+    let speed = if clip.speed.abs() < f32::EPSILON {
+        1.0
+    } else {
+        clip.speed
+    };
     let delta = Time::from_secs_f64(elapsed.as_secs_f64() * speed as f64);
     if clip.forward {
         clip.source_in + delta
@@ -766,7 +784,11 @@ mod tests {
 
     #[test]
     fn source_time_follows_speed() {
-        let clip = Clip::new(0, TimeRange::new(Time::ZERO, Time::from_secs(4)), Time::from_secs(1));
+        let clip = Clip::new(
+            0,
+            TimeRange::new(Time::ZERO, Time::from_secs(4)),
+            Time::from_secs(1),
+        );
         let mut clip = clip;
         clip.speed = 2.0;
         let t = source_time_for(&clip, Time::from_secs(1));

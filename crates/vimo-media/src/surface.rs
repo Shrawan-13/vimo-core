@@ -103,14 +103,20 @@ mod tests {
             format: PixelFormat::Surface,
         };
         assert!(t.is_zero_copy());
-        let b = SurfaceTexture { backing: TextureBacking::Buffer, ..t };
+        let b = SurfaceTexture {
+            backing: TextureBacking::Buffer,
+            ..t
+        };
         assert!(!b.is_zero_copy());
     }
 
     #[test]
     fn the_fallback_reports_unsupported() {
         let mut s = NoSurfaceSource;
-        let picture = SurfacePicture { source: 1, time: vimo_foundation::time::Time::ZERO };
+        let picture = SurfacePicture {
+            source: 1,
+            time: vimo_foundation::time::Time::ZERO,
+        };
         assert!(s.acquire(picture).is_err());
     }
 }

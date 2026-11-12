@@ -99,10 +99,14 @@ impl DecoderPool {
                     return Err(exhausted("decoder pool: hardware instance limit reached"));
                 }
                 let decoder = factory();
-                self.decoders.push(PooledDecoder { decoder, source: None, leased: true });
+                self.decoders.push(PooledDecoder {
+                    decoder,
+                    source: None,
+                    leased: true,
+                });
                 self.created += 1;
                 self.peak_live = self.peak_live.max(self.decoders.len());
-                
+
                 self.decoders.len() - 1
             }
         };
@@ -174,7 +178,12 @@ pub struct TextureHandle(pub u32);
 /// Allocates and frees GPU textures.
 pub trait TextureAllocator {
     /// Allocate a texture.
-    fn allocate(&mut self, width: u32, height: u32, format: PixelFormat) -> VimoResult<TextureHandle>;
+    fn allocate(
+        &mut self,
+        width: u32,
+        height: u32,
+        format: PixelFormat,
+    ) -> VimoResult<TextureHandle>;
     /// Free a texture.
     fn free(&mut self, handle: TextureHandle);
 }
@@ -260,7 +269,14 @@ impl TexturePool {
             self.trim_to(allocator, self.max_bytes.saturating_sub(bytes));
         }
         let handle = allocator.allocate(width, height, format)?;
-        self.textures.push(PooledTexture { handle, width, height, format, bytes, leased: true });
+        self.textures.push(PooledTexture {
+            handle,
+            width,
+            height,
+            format,
+            bytes,
+            leased: true,
+        });
         self.bytes += bytes;
         Ok(handle)
     }
@@ -328,7 +344,11 @@ impl BufferPool {
     /// A pool holding at most `max_bytes` of recycled buffers.
     #[must_use]
     pub fn new(max_bytes: usize) -> Self {
-        BufferPool { buckets: FxHashMap::default(), bytes: 0, max_bytes }
+        BufferPool {
+            buckets: FxHashMap::default(),
+            bytes: 0,
+            max_bytes,
+        }
     }
 
     /// The bytes held.
@@ -436,19 +456,34 @@ mod tests {
     #[test]
     fn texture_pool_recycles_matching_textures() {
         let mut pool = TexturePool::new(1 << 20);
-        let mut alloc = CountingAllocator { allocated: 0, freed: 0 };
-        let a = pool.acquire(&mut alloc, 64, 64, PixelFormat::Rgba8888).unwrap();
+        let mut alloc = CountingAllocator {
+            allocated: 0,
+            freed: 0,
+        };
+        let a = pool
+            .acquire(&mut alloc, 64, 64, PixelFormat::Rgba8888)
+            .unwrap();
         pool.release(a);
-        let b = pool.acquire(&mut alloc, 64, 64, PixelFormat::Rgba8888).unwrap();
+        let b = pool
+            .acquire(&mut alloc, 64, 64, PixelFormat::Rgba8888)
+            .unwrap();
         assert_eq!(a, b);
-        assert_eq!(alloc.allocated, 1, "no new texture should have been allocated");
+        assert_eq!(
+            alloc.allocated, 1,
+            "no new texture should have been allocated"
+        );
     }
 
     #[test]
     fn texture_pool_frees_idle_textures_under_pressure() {
         let mut pool = TexturePool::new(1 << 20);
-        let mut alloc = CountingAllocator { allocated: 0, freed: 0 };
-        let a = pool.acquire(&mut alloc, 64, 64, PixelFormat::Rgba8888).unwrap();
+        let mut alloc = CountingAllocator {
+            allocated: 0,
+            freed: 0,
+        };
+        let a = pool
+            .acquire(&mut alloc, 64, 64, PixelFormat::Rgba8888)
+            .unwrap();
         pool.release(a);
         assert_eq!(pool.release_idle(&mut alloc), 1);
         assert_eq!(alloc.freed, 1);

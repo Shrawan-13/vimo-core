@@ -85,7 +85,10 @@ impl Resampler {
     /// Convert `input` into `output`, appending to the existing content.
     pub fn process(&mut self, input: &[f32], channels: u16, output: &mut Vec<f32>) {
         let ch = channels as usize;
-        if self.input_rate == self.output_rate || self.input_rate == 0 || self.output_rate == 0 || ch == 0
+        if self.input_rate == self.output_rate
+            || self.input_rate == 0
+            || self.output_rate == 0
+            || ch == 0
         {
             output.extend_from_slice(input);
             return;

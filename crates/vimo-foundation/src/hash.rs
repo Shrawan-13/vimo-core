@@ -33,7 +33,9 @@ impl Hasher for FxHasher {
     fn write(&mut self, bytes: &[u8]) {
         let mut chunks = bytes.chunks_exact(8);
         for c in &mut chunks {
-            self.add_to_hash(u64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]));
+            self.add_to_hash(u64::from_le_bytes([
+                c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7],
+            ]));
         }
         let rest = chunks.remainder();
         if !rest.is_empty() {

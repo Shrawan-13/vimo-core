@@ -108,7 +108,11 @@ impl Prefetcher {
                 continue;
             }
             let fps = src.timebase.fps().as_f64().max(1.0);
-            let rate = if src.rate.abs() < f32::EPSILON { 1.0 } else { src.rate };
+            let rate = if src.rate.abs() < f32::EPSILON {
+                1.0
+            } else {
+                src.rate
+            };
             for i in 0..=self.prefetch_frames {
                 let offset = Time::from_secs_f64(i as f64 / fps);
                 let timeline_pos = playhead + offset;
@@ -117,8 +121,8 @@ impl Prefetcher {
                 }
                 // Where in the source media that timeline position lives.
                 let into = timeline_pos - src.visible.start;
-                let source_time = src.visible.start
-                    + Time::from_secs_f64(into.as_secs_f64() * rate as f64);
+                let source_time =
+                    src.visible.start + Time::from_secs_f64(into.as_secs_f64() * rate as f64);
                 self.queue.push(PrefetchRequest {
                     source: src.source,
                     time: source_time,

@@ -139,9 +139,17 @@ pub struct Vec3 {
 
 impl Vec3 {
     /// Zero vector.
-    pub const ZERO: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+    pub const ZERO: Vec3 = Vec3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
     /// One vector.
-    pub const ONE: Vec3 = Vec3 { x: 1.0, y: 1.0, z: 1.0 };
+    pub const ONE: Vec3 = Vec3 {
+        x: 1.0,
+        y: 1.0,
+        z: 1.0,
+    };
 
     /// Construct.
     #[must_use]
@@ -235,9 +243,19 @@ pub struct Vec4 {
 
 impl Vec4 {
     /// Zero vector.
-    pub const ZERO: Vec4 = Vec4 { x: 0.0, y: 0.0, z: 0.0, w: 0.0 };
+    pub const ZERO: Vec4 = Vec4 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+        w: 0.0,
+    };
     /// One vector.
-    pub const ONE: Vec4 = Vec4 { x: 1.0, y: 1.0, z: 1.0, w: 1.0 };
+    pub const ONE: Vec4 = Vec4 {
+        x: 1.0,
+        y: 1.0,
+        z: 1.0,
+        w: 1.0,
+    };
 
     /// Construct.
     #[must_use]
@@ -248,13 +266,23 @@ impl Vec4 {
     /// Build from a 3D vector and a w component.
     #[must_use]
     pub const fn from_vec3(v: Vec3, w: f32) -> Vec4 {
-        Vec4 { x: v.x, y: v.y, z: v.z, w }
+        Vec4 {
+            x: v.x,
+            y: v.y,
+            z: v.z,
+            w,
+        }
     }
 
     /// Build from a 2D vector and z/w components.
     #[must_use]
     pub const fn from_vec2(v: Vec2, z: f32, w: f32) -> Vec4 {
-        Vec4 { x: v.x, y: v.y, z, w }
+        Vec4 {
+            x: v.x,
+            y: v.y,
+            z,
+            w,
+        }
     }
 
     /// Swizzle into a 3D vector.
@@ -327,7 +355,12 @@ impl Rect {
     }
 
     /// Full-frame rect.
-    pub const FULL: Rect = Rect { x: 0.0, y: 0.0, w: 1.0, h: 1.0 };
+    pub const FULL: Rect = Rect {
+        x: 0.0,
+        y: 0.0,
+        w: 1.0,
+        h: 1.0,
+    };
 
     /// Right edge.
     #[must_use]
@@ -363,7 +396,9 @@ impl Default for Mat3 {
 
 impl Mat3 {
     /// Identity matrix.
-    pub const IDENTITY: Mat3 = Mat3 { data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0] };
+    pub const IDENTITY: Mat3 = Mat3 {
+        data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+    };
 
     /// Construct from column-major data.
     #[must_use]
@@ -458,9 +493,15 @@ impl Mat3 {
         // column-major: [ sx*c, sx*s, 0,  -sy*s, sy*c, 0,  tx, ty, 1 ]
         Mat3 {
             data: [
-                sx * c, sx * s, 0.0, //
-                -sy * s, sy * c, 0.0, //
-                translation.x, translation.y, 1.0,
+                sx * c,
+                sx * s,
+                0.0, //
+                -sy * s,
+                sy * c,
+                0.0, //
+                translation.x,
+                translation.y,
+                1.0,
             ],
         }
     }
@@ -556,10 +597,22 @@ impl Mat4 {
         let nf = 1.0 / (near - far);
         Mat4 {
             data: [
-                -2.0 * lr, 0.0, 0.0, 0.0, //
-                0.0, -2.0 * bt, 0.0, 0.0, //
-                0.0, 0.0, 2.0 * nf, 0.0, //
-                (left + right) * lr, (top + bottom) * bt, (far + near) * nf, 1.0,
+                -2.0 * lr,
+                0.0,
+                0.0,
+                0.0, //
+                0.0,
+                -2.0 * bt,
+                0.0,
+                0.0, //
+                0.0,
+                0.0,
+                2.0 * nf,
+                0.0, //
+                (left + right) * lr,
+                (top + bottom) * bt,
+                (far + near) * nf,
+                1.0,
             ],
         }
     }
@@ -648,7 +701,11 @@ mod tests {
         let id = m.mul(&inv);
         for i in 0..9 {
             let expected = if i % 4 == 0 { 1.0 } else { 0.0 };
-            assert!((id.data[i] - expected).abs() < 1e-4, "index {i}: {}", id.data[i]);
+            assert!(
+                (id.data[i] - expected).abs() < 1e-4,
+                "index {i}: {}",
+                id.data[i]
+            );
         }
     }
 

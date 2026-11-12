@@ -55,7 +55,9 @@ pub struct NoShaders;
 
 impl ShaderSourceProvider for NoShaders {
     fn fragment_source(&mut self, _effect_type: EffectTypeId) -> VimoResult<String> {
-        Err(vimo_foundation::error::unsupported("gl: no shader source available"))
+        Err(vimo_foundation::error::unsupported(
+            "gl: no shader source available",
+        ))
     }
 }
 
@@ -78,7 +80,10 @@ struct UniformLocations {
 
 impl UniformLocations {
     fn invalid(program: ProgramId) -> Self {
-        let loc = UniformLocation { program, location: -1 };
+        let loc = UniformLocation {
+            program,
+            location: -1,
+        };
         UniformLocations {
             transform: loc,
             aspect: loc,
@@ -191,8 +196,10 @@ impl GlRenderer {
         gl.delete_shader(transition_fragment);
 
         // The external variant samples a decoder surface directly.
-        let external_fragment = gl
-            .create_shader(ShaderKind::Fragment, shaders::EXTERNAL_PASSTHROUGH_FRAGMENT_SHADER)?;
+        let external_fragment = gl.create_shader(
+            ShaderKind::Fragment,
+            shaders::EXTERNAL_PASSTHROUGH_FRAGMENT_SHADER,
+        )?;
         let external_passthrough = gl.create_program(vertex_shader, external_fragment)?;
         gl.delete_shader(external_fragment);
         let external_uniforms = PassthroughUniforms {
@@ -290,10 +297,22 @@ impl GlRenderer {
             texcoord: [f32; 2],
         }
         const QUAD: [Vertex; 4] = [
-            Vertex { position: [0.0, 0.0], texcoord: [0.0, 0.0] },
-            Vertex { position: [1.0, 0.0], texcoord: [1.0, 0.0] },
-            Vertex { position: [0.0, 1.0], texcoord: [0.0, 1.0] },
-            Vertex { position: [1.0, 1.0], texcoord: [1.0, 1.0] },
+            Vertex {
+                position: [0.0, 0.0],
+                texcoord: [0.0, 0.0],
+            },
+            Vertex {
+                position: [1.0, 0.0],
+                texcoord: [1.0, 0.0],
+            },
+            Vertex {
+                position: [0.0, 1.0],
+                texcoord: [0.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, 1.0],
+                texcoord: [1.0, 1.0],
+            },
         ];
 
         let vao = self.gl.create_vertex_array()?;
@@ -310,7 +329,8 @@ impl GlRenderer {
                 out
             })
             .collect();
-        self.gl.buffer_data(BufferTarget::ArrayBuffer, bytes.len(), &bytes);
+        self.gl
+            .buffer_data(BufferTarget::ArrayBuffer, bytes.len(), &bytes);
         self.gl.enable_vertex_attrib(0);
         self.gl.vertex_attrib_pointer(0, 2, 16, 0);
         self.gl.enable_vertex_attrib(1);
@@ -353,11 +373,17 @@ impl GlRenderer {
             );
 
             let framebuffer = self.gl.create_framebuffer()?;
-            self.gl.bind_framebuffer(FramebufferTarget::Framebuffer, Some(framebuffer));
-            self.gl.framebuffer_texture(FramebufferAttachment::Color0, texture);
+            self.gl
+                .bind_framebuffer(FramebufferTarget::Framebuffer, Some(framebuffer));
+            self.gl
+                .framebuffer_texture(FramebufferAttachment::Color0, texture);
             self.gl.check_framebuffer(framebuffer)?;
-            self.gl.bind_framebuffer(FramebufferTarget::Framebuffer, None);
-            self.targets.push(RenderTarget { framebuffer, texture });
+            self.gl
+                .bind_framebuffer(FramebufferTarget::Framebuffer, None);
+            self.targets.push(RenderTarget {
+                framebuffer,
+                texture,
+            });
         }
         Ok(())
     }
@@ -404,16 +430,24 @@ impl GlRenderer {
             uniforms.params = desc
                 .params
                 .iter()
-                .map(|p| self.gl.uniform_location(program, &vimo_render::uniforms::uniform_name(&p.name)))
+                .map(|p| {
+                    self.gl
+                        .uniform_location(program, &vimo_render::uniforms::uniform_name(&p.name))
+                })
                 .collect();
         }
         Ok(ProgramEntry { program, uniforms })
     }
 
     /// Draw a frame plan.
-    pub fn draw(&mut self, plan: &FramePlan, shaders: &mut dyn ShaderSourceProvider) -> VimoResult<()> {
+    pub fn draw(
+        &mut self,
+        plan: &FramePlan,
+        shaders: &mut dyn ShaderSourceProvider,
+    ) -> VimoResult<()> {
         self.resize(plan.width, plan.height);
-        self.gl.viewport(0, 0, plan.width as i32, plan.height as i32);
+        self.gl
+            .viewport(0, 0, plan.width as i32, plan.height as i32);
 
         for step in &plan.steps {
             match step {
@@ -500,7 +534,8 @@ impl GlRenderer {
             FramebufferTarget::Framebuffer,
             Some(self.targets[0].framebuffer),
         );
-        self.gl.viewport(0, 0, plan.width as i32, plan.height as i32);
+        self.gl
+            .viewport(0, 0, plan.width as i32, plan.height as i32);
         self.bind_texture(0, texture);
         self.use_passthrough();
         self.upload_transform(&transform, 0.0);
@@ -523,7 +558,8 @@ impl GlRenderer {
                 FramebufferTarget::Framebuffer,
                 Some(self.targets[i + 1].framebuffer),
             );
-            self.gl.viewport(0, 0, plan.width as i32, plan.height as i32);
+            self.gl
+                .viewport(0, 0, plan.width as i32, plan.height as i32);
             self.gl.use_program(program);
             self.bind_texture(0, self.targets[i].texture);
             if uniforms.texture.is_valid() {
@@ -536,8 +572,10 @@ impl GlRenderer {
         }
 
         // The final pass composites the last target onto the framebuffer.
-        self.gl.bind_framebuffer(FramebufferTarget::Framebuffer, None);
-        self.gl.viewport(0, 0, plan.width as i32, plan.height as i32);
+        self.gl
+            .bind_framebuffer(FramebufferTarget::Framebuffer, None);
+        self.gl
+            .viewport(0, 0, plan.width as i32, plan.height as i32);
         self.set_blend_state(blend, opacity);
         self.use_passthrough();
         self.bind_texture(0, self.targets[effects.len()].texture);
@@ -568,7 +606,8 @@ impl GlRenderer {
                 FramebufferTarget::Framebuffer,
                 Some(self.targets[slot].framebuffer),
             );
-            self.gl.viewport(0, 0, plan.width as i32, plan.height as i32);
+            self.gl
+                .viewport(0, 0, plan.width as i32, plan.height as i32);
             self.bind_texture(0, *texture);
             self.use_passthrough();
             self.upload_transform(&transform, 0.0);
@@ -577,8 +616,10 @@ impl GlRenderer {
         }
 
         // The transition program blends the two targets.
-        self.gl.bind_framebuffer(FramebufferTarget::Framebuffer, None);
-        self.gl.viewport(0, 0, plan.width as i32, plan.height as i32);
+        self.gl
+            .bind_framebuffer(FramebufferTarget::Framebuffer, None);
+        self.gl
+            .viewport(0, 0, plan.width as i32, plan.height as i32);
         self.gl.use_program(self.transition);
         let uniforms = self.transition_uniforms.clone();
         self.bind_texture(0, self.targets[0].texture);
@@ -593,7 +634,8 @@ impl GlRenderer {
             self.gl.uniform_1f(uniforms.progress, progress);
         }
         if uniforms.transform.is_valid() {
-            self.gl.uniform_matrix_3fv(uniforms.transform, &Mat3::IDENTITY.data);
+            self.gl
+                .uniform_matrix_3fv(uniforms.transform, &Mat3::IDENTITY.data);
         }
         if uniforms.aspect.is_valid() {
             let aspect = if self.height == 0 {
@@ -634,7 +676,8 @@ impl GlRenderer {
                 self.upload_transform(&Mat3::IDENTITY, 0.0);
                 self.draw_quad();
             }
-            self.gl.bind_framebuffer(FramebufferTarget::Framebuffer, None);
+            self.gl
+                .bind_framebuffer(FramebufferTarget::Framebuffer, None);
             self.use_passthrough();
             self.bind_texture(0, self.targets[effects.len()].texture);
             self.upload_transform(&Mat3::IDENTITY, if self.flip_final { 1.0 } else { 0.0 });
@@ -671,10 +714,15 @@ impl GlRenderer {
             );
         }
         if uniforms.texel.is_valid() {
-            self.gl.uniform_2f(uniforms.texel, effect.builtins.texel[0], effect.builtins.texel[1]);
+            self.gl.uniform_2f(
+                uniforms.texel,
+                effect.builtins.texel[0],
+                effect.builtins.texel[1],
+            );
         }
         if uniforms.opacity.is_valid() {
-            self.gl.uniform_1f(uniforms.opacity, effect.builtins.opacity);
+            self.gl
+                .uniform_1f(uniforms.opacity, effect.builtins.opacity);
         }
 
         // The manifest parameters, in declaration order. Each type has its own
@@ -756,7 +804,8 @@ impl GlRenderer {
     fn upload_transform(&mut self, transform: &Mat3, flip_y: f32) {
         let uniforms = self.passthrough_uniforms.clone();
         if uniforms.transform.is_valid() {
-            self.gl.uniform_matrix_3fv(uniforms.transform, &transform.data);
+            self.gl
+                .uniform_matrix_3fv(uniforms.transform, &transform.data);
         }
         if uniforms.aspect.is_valid() {
             let aspect = if self.height == 0 {
@@ -783,7 +832,9 @@ impl GlRenderer {
     fn set_blend_state(&mut self, blend: BlendMode, _opacity: f32) {
         use vimo_project::model::BlendFactor::*;
         let factors = if blend.is_separable() {
-            blend.gl_factors().unwrap_or((One, OneMinusSrcAlpha, One, OneMinusSrcAlpha))
+            blend
+                .gl_factors()
+                .unwrap_or((One, OneMinusSrcAlpha, One, OneMinusSrcAlpha))
         } else {
             // The non-separable modes need a shader; fall back to "over".
             (One, OneMinusSrcAlpha, One, OneMinusSrcAlpha)

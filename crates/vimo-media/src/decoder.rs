@@ -280,7 +280,11 @@ impl Encoder for FakeEncoder {
         for s in &buffer.samples {
             data.extend_from_slice(&s.to_le_bytes());
         }
-        Ok(vec![EncodedChunk { data, pts: buffer.pts, keyframe: true }])
+        Ok(vec![EncodedChunk {
+            data,
+            pts: buffer.pts,
+            keyframe: true,
+        }])
     }
 
     fn finish(&mut self) -> VimoResult<Vec<EncodedChunk>> {
@@ -331,7 +335,9 @@ mod tests {
     fn released_decoder_errors() {
         let mut d = FakeDecoder::new();
         d.release();
-        assert!(d.configure(&DecoderConfig::new(MediaFormat::new())).is_err());
+        assert!(d
+            .configure(&DecoderConfig::new(MediaFormat::new()))
+            .is_err());
     }
 
     #[test]

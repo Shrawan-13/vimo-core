@@ -235,7 +235,11 @@ impl Command {
     /// Build an `AddClip` command.
     #[must_use]
     pub fn add_clip(track: TrackId, list_index: usize, clip: Clip) -> Command {
-        Command::AddClip { track, list_index, clip }
+        Command::AddClip {
+            track,
+            list_index,
+            clip,
+        }
     }
 
     /// Build an `UpdateClip` command from a mutation of a copy of the clip.
@@ -246,7 +250,11 @@ impl Command {
     pub fn edit_clip(clip: ClipId, before: Clip, mutate: impl FnOnce(&mut Clip)) -> Command {
         let mut after = before.clone();
         mutate(&mut after);
-        Command::UpdateClip { clip, before, after }
+        Command::UpdateClip {
+            clip,
+            before,
+            after,
+        }
     }
 
     /// Build an `UpdateTrack` command from a mutation of a copy of the track.
@@ -254,15 +262,27 @@ impl Command {
     pub fn edit_track(track: TrackId, before: Track, mutate: impl FnOnce(&mut Track)) -> Command {
         let mut after = before.clone();
         mutate(&mut after);
-        Command::UpdateTrack { track, before, after }
+        Command::UpdateTrack {
+            track,
+            before,
+            after,
+        }
     }
 
     /// Build an `UpdateEffect` command from a mutation of a copy of the effect.
     #[must_use]
-    pub fn edit_effect(effect: EffectId, before: EffectNode, mutate: impl FnOnce(&mut EffectNode)) -> Command {
+    pub fn edit_effect(
+        effect: EffectId,
+        before: EffectNode,
+        mutate: impl FnOnce(&mut EffectNode),
+    ) -> Command {
         let mut after = before.clone();
         mutate(&mut after);
-        Command::UpdateEffect { effect, before, after }
+        Command::UpdateEffect {
+            effect,
+            before,
+            after,
+        }
     }
 
     /// The effect index this command touches, when it touches exactly one.
@@ -305,7 +325,9 @@ impl Command {
             Command::MoveKeyframe { .. } => "Move Keyframe",
             Command::SetKeyframeInterpolation { .. } => "Change Keyframe Easing",
             Command::AddTransition { .. } => "Add Transition",
-            Command::RemoveTransition { .. } | Command::RestoreTransition { .. } => "Remove Transition",
+            Command::RemoveTransition { .. } | Command::RestoreTransition { .. } => {
+                "Remove Transition"
+            }
             Command::Batch(_) => "Edit",
         }
     }
@@ -315,7 +337,9 @@ impl Command {
         let inverse = match self {
             Command::AddAsset { asset } => {
                 project.assets.push(asset.clone());
-                Command::RemoveAsset { index: (project.assets.len() - 1) as AssetId }
+                Command::RemoveAsset {
+                    index: (project.assets.len() - 1) as AssetId,
+                }
             }
             Command::RemoveAsset { index } => {
                 if project.live_clips().any(|(_, c)| c.asset == *index) {
@@ -338,7 +362,9 @@ impl Command {
             }
             Command::AddTrack { track } => {
                 project.tracks.push(track.clone());
-                Command::RemoveTrack { index: (project.tracks.len() - 1) as TrackId }
+                Command::RemoveTrack {
+                    index: (project.tracks.len() - 1) as TrackId,
+                }
             }
             Command::RemoveTrack { index } => {
                 let t = project
@@ -356,7 +382,11 @@ impl Command {
                 t.alive = true;
                 Command::RemoveTrack { index: *index }
             }
-            Command::AddClip { track, list_index, clip } => {
+            Command::AddClip {
+                track,
+                list_index,
+                clip,
+            } => {
                 let t = project
                     .tracks
                     .get_mut(*track as usize)
@@ -369,9 +399,17 @@ impl Command {
                 let pos = (*list_index).min(t.clips.len());
                 t.clips.insert(pos, id);
                 t.revision = t.revision.wrapping_add(1);
-                Command::RemoveClip { track: *track, list_index: pos, clip: id }
+                Command::RemoveClip {
+                    track: *track,
+                    list_index: pos,
+                    clip: id,
+                }
             }
-            Command::RemoveClip { track, list_index, clip } => {
+            Command::RemoveClip {
+                track,
+                list_index,
+                clip,
+            } => {
                 let t = project
                     .tracks
                     .get_mut(*track as usize)
@@ -387,9 +425,17 @@ impl Command {
                 if let Some(c) = project.clips.get_mut(*clip as usize) {
                     c.alive = false;
                 }
-                Command::RestoreClip { track: *track, list_index: pos, clip: *clip }
+                Command::RestoreClip {
+                    track: *track,
+                    list_index: pos,
+                    clip: *clip,
+                }
             }
-            Command::RestoreClip { track, list_index, clip } => {
+            Command::RestoreClip {
+                track,
+                list_index,
+                clip,
+            } => {
                 let t = project
                     .tracks
                     .get_mut(*track as usize)
@@ -403,9 +449,17 @@ impl Command {
                     t.clips.insert(pos, *clip);
                 }
                 t.revision = t.revision.wrapping_add(1);
-                Command::RemoveClip { track: *track, list_index: pos, clip: *clip }
+                Command::RemoveClip {
+                    track: *track,
+                    list_index: pos,
+                    clip: *clip,
+                }
             }
-            Command::UpdateClip { clip, before, after } => {
+            Command::UpdateClip {
+                clip,
+                before,
+                after,
+            } => {
                 let slot = project
                     .clips
                     .get_mut(*clip as usize)
@@ -413,9 +467,17 @@ impl Command {
                 let mut next = after.clone();
                 next.revision = slot.revision.wrapping_add(1);
                 *slot = next;
-                Command::UpdateClip { clip: *clip, before: after.clone(), after: before.clone() }
+                Command::UpdateClip {
+                    clip: *clip,
+                    before: after.clone(),
+                    after: before.clone(),
+                }
             }
-            Command::UpdateTrack { track, before, after } => {
+            Command::UpdateTrack {
+                track,
+                before,
+                after,
+            } => {
                 let slot = project
                     .tracks
                     .get_mut(*track as usize)
@@ -423,7 +485,11 @@ impl Command {
                 let mut next = after.clone();
                 next.revision = slot.revision.wrapping_add(1);
                 *slot = next;
-                Command::UpdateTrack { track: *track, before: after.clone(), after: before.clone() }
+                Command::UpdateTrack {
+                    track: *track,
+                    before: after.clone(),
+                    after: before.clone(),
+                }
             }
             Command::AddEffect { owner, effect } => {
                 let id = project.effects.len() as EffectId;
@@ -431,18 +497,34 @@ impl Command {
                 node.alive = true;
                 project.effects.push(node);
                 let list_index = attach_effect(project, *owner, id)?;
-                Command::RemoveEffect { owner: *owner, list_index, effect: id }
+                Command::RemoveEffect {
+                    owner: *owner,
+                    list_index,
+                    effect: id,
+                }
             }
-            Command::RemoveEffect { owner, list_index, effect } => {
+            Command::RemoveEffect {
+                owner,
+                list_index,
+                effect,
+            } => {
                 let list = effect_list_mut(project, *owner)?;
                 let pos = list.iter().position(|e| e == effect).unwrap_or(*list_index);
                 list.remove(pos);
                 if let Some(e) = project.effects.get_mut(*effect as usize) {
                     e.alive = false;
                 }
-                Command::RestoreEffect { owner: *owner, list_index: pos, effect: *effect }
+                Command::RestoreEffect {
+                    owner: *owner,
+                    list_index: pos,
+                    effect: *effect,
+                }
             }
-            Command::RestoreEffect { owner, list_index, effect } => {
+            Command::RestoreEffect {
+                owner,
+                list_index,
+                effect,
+            } => {
                 let list = effect_list_mut(project, *owner)?;
                 let pos = (*list_index).min(list.len());
                 if !list.contains(effect) {
@@ -451,9 +533,17 @@ impl Command {
                 if let Some(e) = project.effects.get_mut(*effect as usize) {
                     e.alive = true;
                 }
-                Command::RemoveEffect { owner: *owner, list_index: pos, effect: *effect }
+                Command::RemoveEffect {
+                    owner: *owner,
+                    list_index: pos,
+                    effect: *effect,
+                }
             }
-            Command::UpdateEffect { effect, before, after } => {
+            Command::UpdateEffect {
+                effect,
+                before,
+                after,
+            } => {
                 let slot = project
                     .effects
                     .get_mut(*effect as usize)
@@ -461,25 +551,47 @@ impl Command {
                 let mut next = after.clone();
                 next.revision = slot.revision.wrapping_add(1);
                 *slot = next;
-                Command::UpdateEffect { effect: *effect, before: after.clone(), after: before.clone() }
+                Command::UpdateEffect {
+                    effect: *effect,
+                    before: after.clone(),
+                    after: before.clone(),
+                }
             }
-            Command::SetParam { effect, param, before, after } => {
+            Command::SetParam {
+                effect,
+                param,
+                before,
+                after,
+            } => {
                 let slot = project
                     .effects
                     .get_mut(*effect as usize)
                     .ok_or_else(|| invalid_argument("set param: unknown effect"))?;
                 slot.params.set(*param, *after);
                 slot.revision = slot.revision.wrapping_add(1);
-                Command::SetParam { effect: *effect, param: *param, before: *after, after: *before }
+                Command::SetParam {
+                    effect: *effect,
+                    param: *param,
+                    before: *after,
+                    after: *before,
+                }
             }
-            Command::SetEffectEnabled { effect, before, after } => {
+            Command::SetEffectEnabled {
+                effect,
+                before,
+                after,
+            } => {
                 let slot = project
                     .effects
                     .get_mut(*effect as usize)
                     .ok_or_else(|| invalid_argument("toggle effect: unknown effect"))?;
                 slot.enabled = *after;
                 slot.revision = slot.revision.wrapping_add(1);
-                Command::SetEffectEnabled { effect: *effect, before: *after, after: *before }
+                Command::SetEffectEnabled {
+                    effect: *effect,
+                    before: *after,
+                    after: *before,
+                }
             }
             Command::AddKeyframe { effect, track, key } => {
                 let slot = project
@@ -492,9 +604,19 @@ impl Command {
                     .ok_or_else(|| invalid_argument("add keyframe: unknown animation track"))?;
                 let index = anim.insert(*key);
                 slot.revision = slot.revision.wrapping_add(1);
-                Command::RemoveKeyframe { effect: *effect, track: *track, index, key: *key }
+                Command::RemoveKeyframe {
+                    effect: *effect,
+                    track: *track,
+                    index,
+                    key: *key,
+                }
             }
-            Command::RemoveKeyframe { effect, track, index, key } => {
+            Command::RemoveKeyframe {
+                effect,
+                track,
+                index,
+                key,
+            } => {
                 let slot = project
                     .effects
                     .get_mut(*effect as usize)
@@ -505,9 +627,18 @@ impl Command {
                     .ok_or_else(|| invalid_argument("remove keyframe: unknown animation track"))?;
                 anim.remove(*index);
                 slot.revision = slot.revision.wrapping_add(1);
-                Command::AddKeyframe { effect: *effect, track: *track, key: *key }
+                Command::AddKeyframe {
+                    effect: *effect,
+                    track: *track,
+                    key: *key,
+                }
             }
-            Command::MoveKeyframe { effect, track, from, to } => {
+            Command::MoveKeyframe {
+                effect,
+                track,
+                from,
+                to,
+            } => {
                 let slot = project
                     .effects
                     .get_mut(*effect as usize)
@@ -521,9 +652,20 @@ impl Command {
                     anim.keys.insert(*to, k);
                 }
                 slot.revision = slot.revision.wrapping_add(1);
-                Command::MoveKeyframe { effect: *effect, track: *track, from: *to, to: *from }
+                Command::MoveKeyframe {
+                    effect: *effect,
+                    track: *track,
+                    from: *to,
+                    to: *from,
+                }
             }
-            Command::SetKeyframeInterpolation { effect, track, index, before, after } => {
+            Command::SetKeyframeInterpolation {
+                effect,
+                track,
+                index,
+                before,
+                after,
+            } => {
                 let slot = project
                     .effects
                     .get_mut(*effect as usize)
@@ -546,7 +688,9 @@ impl Command {
             }
             Command::AddTransition { transition } => {
                 project.transitions.push(transition.clone());
-                Command::RemoveTransition { index: (project.transitions.len() - 1) as TransitionId }
+                Command::RemoveTransition {
+                    index: (project.transitions.len() - 1) as TransitionId,
+                }
             }
             Command::RemoveTransition { index } => {
                 let t = project
@@ -591,7 +735,9 @@ fn effect_list_mut(project: &mut Project, owner: EffectOwner) -> VimoResult<&mut
             .get_mut(id as usize)
             .map(|t| &mut t.effects)
             .ok_or_else(|| invalid_argument("effect owner: unknown track")),
-        EffectOwner::Transition(_id) => Err(invalid_argument("effect owner: transitions carry no effect list")),
+        EffectOwner::Transition(_id) => Err(invalid_argument(
+            "effect owner: transitions carry no effect list",
+        )),
     }
 }
 
@@ -634,7 +780,11 @@ mod tests {
     }
 
     fn clip() -> Clip {
-        Clip::new(0, TimeRange::new(Time::ZERO, Time::from_secs(2)), Time::ZERO)
+        Clip::new(
+            0,
+            TimeRange::new(Time::ZERO, Time::from_secs(2)),
+            Time::ZERO,
+        )
     }
 
     #[test]
@@ -699,7 +849,10 @@ mod tests {
         )
         .unwrap();
         let node = EffectNode::new(vimo_manifest::EffectTypeId::from_index(0), &desc);
-        let cmd = Command::AddEffect { owner: EffectOwner::Clip(0), effect: node };
+        let cmd = Command::AddEffect {
+            owner: EffectOwner::Clip(0),
+            effect: node,
+        };
         let inv = cmd.apply(&mut p).unwrap();
         let effect_id = inv.effect_id().unwrap();
 
@@ -711,7 +864,10 @@ mod tests {
             after: ParamValue::Float(0.5),
         };
         let inv = set.apply(&mut p).unwrap();
-        assert_eq!(p.effects[effect_id as usize].params.get(0), Some(ParamValue::Float(0.5)));
+        assert_eq!(
+            p.effects[effect_id as usize].params.get(0),
+            Some(ParamValue::Float(0.5))
+        );
         inv.apply(&mut p).unwrap();
         assert_eq!(p.effects[effect_id as usize].params.get(0), Some(before));
     }

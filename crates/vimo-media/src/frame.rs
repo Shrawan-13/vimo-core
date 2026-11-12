@@ -13,8 +13,7 @@ use crate::codec::{PixelFormat, Rotation, VideoFormat};
 /// The buffer remembers its **logical size** separately from the allocation,
 /// so a recycled buffer can be handed back with the right dimensions even
 /// after its storage has been moved out.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FrameBuffer {
     data: Vec<u8>,
     size: usize,
@@ -28,7 +27,6 @@ pub struct FrameBuffer {
     pub stride: u32,
 }
 
-
 impl FrameBuffer {
     /// An empty buffer.
     #[must_use]
@@ -39,7 +37,11 @@ impl FrameBuffer {
     /// A buffer with `len` bytes of storage, zeroed.
     #[must_use]
     pub fn with_len(len: usize) -> Self {
-        FrameBuffer { data: vec![0u8; len], size: len, ..Default::default() }
+        FrameBuffer {
+            data: vec![0u8; len],
+            size: len,
+            ..Default::default()
+        }
     }
 
     /// A buffer sized for a video format.
@@ -152,7 +154,12 @@ impl AudioBuffer {
     /// An empty buffer.
     #[must_use]
     pub fn new(sample_rate: u32, channels: u16) -> Self {
-        AudioBuffer { samples: Vec::new(), sample_rate, channels, pts: Time::ZERO }
+        AudioBuffer {
+            samples: Vec::new(),
+            sample_rate,
+            channels,
+            pts: Time::ZERO,
+        }
     }
 
     /// The number of sample frames (per channel).

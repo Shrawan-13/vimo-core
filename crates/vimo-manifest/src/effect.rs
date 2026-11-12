@@ -157,9 +157,10 @@ impl EffectRegistry {
                 format!("duplicate effect id `{}`", desc.id),
             ));
         }
-        let id = EffectTypeId(u32::try_from(self.effects.len()).map_err(|_| {
-            malformed("register effect: too many effect types")
-        })?);
+        let id = EffectTypeId(
+            u32::try_from(self.effects.len())
+                .map_err(|_| malformed("register effect: too many effect types"))?,
+        );
         self.by_id.insert(key, id.0);
         self.effects.push(desc);
         Ok(id)
@@ -168,7 +169,10 @@ impl EffectRegistry {
     /// Look up an effect type by its string id (case-insensitive).
     #[must_use]
     pub fn lookup(&self, id: &str) -> Option<EffectTypeId> {
-        self.by_id.get(&id.to_ascii_lowercase()).copied().map(EffectTypeId)
+        self.by_id
+            .get(&id.to_ascii_lowercase())
+            .copied()
+            .map(EffectTypeId)
     }
 
     /// Get an effect descriptor by interned id.
@@ -229,7 +233,10 @@ impl ParamStore {
     #[must_use]
     pub fn from_values(values: Vec<ParamValue>) -> Self {
         let words = values.len().div_ceil(64).max(1);
-        ParamStore { values: values.into_boxed_slice(), overridden: vec![0u64; words].into_boxed_slice() }
+        ParamStore {
+            values: values.into_boxed_slice(),
+            overridden: vec![0u64; words].into_boxed_slice(),
+        }
     }
 
     /// Number of parameter slots.
@@ -269,7 +276,9 @@ impl ParamStore {
     pub fn is_overridden(&self, index: u16) -> bool {
         let word = index as usize / 64;
         let bit = index as u64 % 64;
-        self.overridden.get(word).is_some_and(|w| (w >> bit) & 1 == 1)
+        self.overridden
+            .get(word)
+            .is_some_and(|w| (w >> bit) & 1 == 1)
     }
 
     /// Clear the override flag for a parameter (the value stays as-is).

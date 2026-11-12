@@ -38,7 +38,11 @@ impl History {
     /// A history that keeps at most `max_depth` undo steps.
     #[must_use]
     pub fn with_max_depth(max_depth: usize) -> Self {
-        History { undo: Vec::new(), redo: Vec::new(), max_depth: max_depth.max(1) }
+        History {
+            undo: Vec::new(),
+            redo: Vec::new(),
+            max_depth: max_depth.max(1),
+        }
     }
 
     /// Execute a command and record it.
@@ -135,7 +139,11 @@ mod tests {
     }
 
     fn clip() -> Clip {
-        Clip::new(0, TimeRange::new(Time::ZERO, Time::from_secs(2)), Time::ZERO)
+        Clip::new(
+            0,
+            TimeRange::new(Time::ZERO, Time::from_secs(2)),
+            Time::ZERO,
+        )
     }
 
     #[test]
@@ -189,7 +197,8 @@ mod tests {
         let mut h = History::new();
         h.execute(&mut p, Command::add_clip(0, 0, clip())).unwrap();
         let before = p.clips[0].clone();
-        h.execute(&mut p, Command::edit_clip(0, before, |c| c.opacity = 0.3)).unwrap();
+        h.execute(&mut p, Command::edit_clip(0, before, |c| c.opacity = 0.3))
+            .unwrap();
         h.undo(&mut p).unwrap();
         h.undo(&mut p).unwrap();
         assert_eq!(p.tracks[0].clips.len(), 0);

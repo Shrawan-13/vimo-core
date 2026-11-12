@@ -85,5 +85,8 @@ fn oversized_manifest_is_rejected() {
         text.push_str(&format!("{{\"id\":\"e{i}\"}}"));
     }
     text.push_str("]}");
-    assert!(Manifest::parse_str(&text).is_err(), "too many effects must be rejected");
+    assert!(
+        Manifest::parse_str(&text).is_err(),
+        "too many effects must be rejected"
+    );
 }

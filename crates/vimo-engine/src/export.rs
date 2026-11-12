@@ -216,7 +216,11 @@ impl ExportPipeline {
     /// The progress.
     #[must_use]
     pub fn progress(&self) -> ExportProgress {
-        ExportProgress { frame: self.frame, total_frames: self.total_frames, state: self.state }
+        ExportProgress {
+            frame: self.frame,
+            total_frames: self.total_frames,
+            state: self.state,
+        }
     }
 
     /// Start the export with an encoder.
@@ -363,8 +367,11 @@ mod tests {
 
     #[test]
     fn cancelling_stops_the_pipeline() {
-        let mut pipeline = ExportPipeline::new(ExportPreset::hd_1080p(), Time::from_secs(1)).unwrap();
-        pipeline.start(Box::new(vimo_media::FakeEncoder::default())).unwrap();
+        let mut pipeline =
+            ExportPipeline::new(ExportPreset::hd_1080p(), Time::from_secs(1)).unwrap();
+        pipeline
+            .start(Box::new(vimo_media::FakeEncoder::default()))
+            .unwrap();
         pipeline.cancel();
         assert_eq!(pipeline.state(), ExportState::Cancelled);
     }

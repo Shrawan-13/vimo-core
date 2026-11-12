@@ -20,12 +20,20 @@ impl WaveformResolution {
     /// A resolution.
     #[must_use]
     pub fn new(samples_per_bucket: u32) -> Self {
-        WaveformResolution { samples_per_bucket: if samples_per_bucket == 0 { 1 } else { samples_per_bucket } }
+        WaveformResolution {
+            samples_per_bucket: if samples_per_bucket == 0 {
+                1
+            } else {
+                samples_per_bucket
+            },
+        }
     }
 }
 
 /// The default resolution used for the timeline overview.
-pub const DEFAULT_RESOLUTION: WaveformResolution = WaveformResolution { samples_per_bucket: 512 };
+pub const DEFAULT_RESOLUTION: WaveformResolution = WaveformResolution {
+    samples_per_bucket: 512,
+};
 
 /// A cached waveform.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,7 +80,11 @@ impl Waveform {
             peaks.push(peak);
             i = end;
         }
-        Waveform { resolution, peaks, duration }
+        Waveform {
+            resolution,
+            peaks,
+            duration,
+        }
     }
 
     /// The number of buckets.
@@ -109,7 +121,8 @@ impl WaveformCache {
 
     /// Insert a waveform.
     pub fn insert(&mut self, source: u64, waveform: Waveform) {
-        self.entries.insert((source, waveform.resolution.samples_per_bucket), waveform);
+        self.entries
+            .insert((source, waveform.resolution.samples_per_bucket), waveform);
     }
 
     /// Remove every waveform of a source.
@@ -151,7 +164,12 @@ mod tests {
     #[test]
     fn waveform_buckets_the_samples() {
         let samples: Vec<f32> = (0..1000).map(|i| (i % 100) as f32 / 100.0).collect();
-        let w = Waveform::compute(&samples, 1, WaveformResolution::new(100), Time::from_secs(1));
+        let w = Waveform::compute(
+            &samples,
+            1,
+            WaveformResolution::new(100),
+            Time::from_secs(1),
+        );
         assert_eq!(w.len(), 10);
         assert!(w.peaks[0].max > 0.0);
     }

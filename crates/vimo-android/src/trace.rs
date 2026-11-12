@@ -62,6 +62,11 @@ impl TraceSink for LogcatSink {
     }
 
     fn on_end(&self, info: &SpanInfo) {
-        log::trace!("span end {} #{} ({} ns)", info.name, info.id, info.duration_ns);
+        log::trace!(
+            "span end {} #{} ({} ns)",
+            info.name,
+            info.id,
+            info.duration_ns
+        );
     }
 }

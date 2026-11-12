@@ -32,10 +32,8 @@ pub use plan::{
     TextureResolver,
 };
 pub use shader::{
-    parse_uniforms, validate_uniforms, GlType, NullShaderProvider, ProgramId,
-    ShaderProvider, ShaderUniform, UniformMismatch,
+    parse_uniforms, validate_uniforms, GlType, NullShaderProvider, ProgramId, ShaderProvider,
+    ShaderUniform, UniformMismatch,
 };
 pub use software::{diff, execute, FrameBuffer, FrameProvider, FrameView};
-pub use uniforms::{
-    write_param, BuiltinUniforms, UniformArena, UniformBlock, UniformRange,
-};
+pub use uniforms::{write_param, BuiltinUniforms, UniformArena, UniformBlock, UniformRange};

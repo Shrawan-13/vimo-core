@@ -14,9 +14,11 @@ use vimo_foundation::color::Rgba8;
 use vimo_foundation::math::{Rect, Vec2};
 use vimo_foundation::time::{Time, TimeRange};
 use vimo_manifest::EffectRegistry;
-use vimo_project::model::{Asset, Clip, Transform, Track, TrackKind};
+use vimo_project::model::{Asset, Clip, Track, TrackKind, Transform};
 use vimo_project::Project;
-use vimo_render::software::{diff, execute, read_ppm, write_ppm, FrameBuffer, FrameProvider, FrameView};
+use vimo_render::software::{
+    diff, execute, read_ppm, write_ppm, FrameBuffer, FrameProvider, FrameView,
+};
 use vimo_render::{FramePlan, RenderGraph, TextureRef};
 
 /// A provider that returns a solid colour per clip.
@@ -36,12 +38,18 @@ impl SolidProvider {
 impl FrameProvider for SolidProvider {
     fn frame_for(&self, request: &TextureRef) -> Option<FrameView<'_>> {
         let index = self.colors.iter().position(|(c, _)| *c == request.clip)?;
-        Some(FrameView { width: 1, height: 1, pixels: &self.pixels[index..index + 1] })
+        Some(FrameView {
+            width: 1,
+            height: 1,
+            pixels: &self.pixels[index..index + 1],
+        })
     }
 }
 
 fn golden_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("golden")
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("golden")
 }
 
 /// Compare a rendered frame against its golden file.
@@ -55,10 +63,13 @@ fn check_golden(name: &str, frame: &FrameBuffer) {
     let expected = read_ppm(&path).expect("read golden");
     let stats = diff(&expected, frame);
     assert_eq!(
-        stats.differing_pixels, 0,
+        stats.differing_pixels,
+        0,
         "{name}: {} pixels differ (max channel delta {}). If this change is \
          intended, delete {} and re-run the test.",
-        stats.differing_pixels, stats.max_channel_delta, path.display()
+        stats.differing_pixels,
+        stats.max_channel_delta,
+        path.display()
     );
 }
 

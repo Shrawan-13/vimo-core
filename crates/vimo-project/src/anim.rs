@@ -13,8 +13,7 @@ use vimo_foundation::time::Time;
 use vimo_manifest::ParamValue;
 
 /// How the value between two keyframes is interpolated.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum Interpolation {
     /// Straight line between the two values.
     #[default]
@@ -33,7 +32,6 @@ pub enum Interpolation {
     /// The value holds until the next keyframe.
     Hold,
 }
-
 
 impl Interpolation {
     /// Build a bezier interpolation, clamping the x control points to 0..=1.
@@ -73,7 +71,11 @@ impl Keyframe {
     /// A keyframe with linear interpolation.
     #[must_use]
     pub fn new(time: Time, value: ParamValue) -> Self {
-        Keyframe { time, value, interpolation: Interpolation::Linear }
+        Keyframe {
+            time,
+            value,
+            interpolation: Interpolation::Linear,
+        }
     }
 }
 
@@ -90,7 +92,10 @@ impl AnimTrack {
     /// An empty track for `param`.
     #[must_use]
     pub fn new(param: u16) -> Self {
-        AnimTrack { param, keys: Vec::new() }
+        AnimTrack {
+            param,
+            keys: Vec::new(),
+        }
     }
 
     /// Whether the track has no keyframes.
@@ -184,9 +189,15 @@ pub fn lerp_value(a: ParamValue, b: ParamValue, t: f32) -> ParamValue {
     let t = t.clamp(0.0, 1.0);
     match (a, b) {
         (ParamValue::Float(x), ParamValue::Float(y)) => ParamValue::Float(x + (y - x) * t),
-        (ParamValue::Int(x), ParamValue::Int(y)) => ParamValue::Int((x as f32 + (y - x) as f32 * t).round() as i32),
-        (ParamValue::Bool(x), ParamValue::Bool(y)) => ParamValue::Bool(if t >= 1.0 { y } else { x }),
-        (ParamValue::Enum(x), ParamValue::Enum(y)) => ParamValue::Enum(if t >= 1.0 { y } else { x }),
+        (ParamValue::Int(x), ParamValue::Int(y)) => {
+            ParamValue::Int((x as f32 + (y - x) as f32 * t).round() as i32)
+        }
+        (ParamValue::Bool(x), ParamValue::Bool(y)) => {
+            ParamValue::Bool(if t >= 1.0 { y } else { x })
+        }
+        (ParamValue::Enum(x), ParamValue::Enum(y)) => {
+            ParamValue::Enum(if t >= 1.0 { y } else { x })
+        }
         (ParamValue::Color(x), ParamValue::Color(y)) => {
             // Interpolate the raw 8-bit channels; `to_f32` returns 0..1 values.
             ParamValue::Color(Rgba8::new(
@@ -196,10 +207,9 @@ pub fn lerp_value(a: ParamValue, b: ParamValue, t: f32) -> ParamValue {
                 lerp_u8(x.a as f32, y.a as f32, t),
             ))
         }
-        (ParamValue::Vec2(x), ParamValue::Vec2(y)) => ParamValue::Vec2(Vec2::new(
-            x.x + (y.x - x.x) * t,
-            x.y + (y.y - x.y) * t,
-        )),
+        (ParamValue::Vec2(x), ParamValue::Vec2(y)) => {
+            ParamValue::Vec2(Vec2::new(x.x + (y.x - x.x) * t, x.y + (y.y - x.y) * t))
+        }
         (ParamValue::Vec3(x), ParamValue::Vec3(y)) => ParamValue::Vec3(Vec3::new(
             x.x + (y.x - x.x) * t,
             x.y + (y.y - x.y) * t,
@@ -294,7 +304,10 @@ mod tests {
         t.insert(Keyframe::new(Time::from_secs(0), ParamValue::Float(0.0)));
         t.insert(Keyframe::new(Time::from_secs(1), ParamValue::Float(10.0)));
         assert_eq!(t.sample(Time::from_secs(0)), Some(ParamValue::Float(0.0)));
-        assert_eq!(t.sample(Time::from_millis(500)), Some(ParamValue::Float(5.0)));
+        assert_eq!(
+            t.sample(Time::from_millis(500)),
+            Some(ParamValue::Float(5.0))
+        );
         assert_eq!(t.sample(Time::from_secs(1)), Some(ParamValue::Float(10.0)));
     }
 
@@ -312,7 +325,10 @@ mod tests {
         k0.interpolation = Interpolation::Hold;
         t.insert(k0);
         t.insert(Keyframe::new(Time::from_secs(1), ParamValue::Float(10.0)));
-        assert_eq!(t.sample(Time::from_millis(500)), Some(ParamValue::Float(0.0)));
+        assert_eq!(
+            t.sample(Time::from_millis(500)),
+            Some(ParamValue::Float(0.0))
+        );
         assert_eq!(t.sample(Time::from_secs(1)), Some(ParamValue::Float(10.0)));
     }
 

@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use vimo_foundation::time::{Time, TimeRange};
 use vimo_manifest::EffectRegistry;
-use vimo_project::model::{Asset, Clip, EffectOwner, EffectNode, Track, TrackKind};
+use vimo_project::model::{Asset, Clip, EffectNode, EffectOwner, Track, TrackKind};
 use vimo_project::{codec, Command, History, Project};
 use vimo_render::RenderGraph;
 
@@ -62,7 +62,12 @@ fn bench<F: FnMut()>(name: &'static str, iterations: u32, budget: Duration, mut 
         f();
     }
     let total = start.elapsed();
-    Bench { name, iterations, total, budget }
+    Bench {
+        name,
+        iterations,
+        total,
+        budget,
+    }
 }
 
 /// Build a project with `tracks` tracks and `clips_per_track` clips each.
@@ -79,7 +84,8 @@ fn build_project(tracks: usize, clips_per_track: usize) -> Project {
             let start = Time::from_secs((c * 2) as i64);
             let end = Time::from_secs((c * 2 + 2) as i64);
             let id = p.clips.len() as u32;
-            p.clips.push(Clip::new(0, TimeRange::new(start, end), Time::ZERO));
+            p.clips
+                .push(Clip::new(0, TimeRange::new(start, end), Time::ZERO));
             p.tracks[t].clips.push(id);
         }
     }
@@ -95,55 +101,85 @@ fn main() {
     let small = build_project(4, 4);
     let mut graph = RenderGraph::new(small, registry.clone());
     let mut t = Time::ZERO;
-    results.push(bench("frame_at (16 clips)", 2_000, Duration::from_micros(100), || {
-        graph.frame_at(t).expect("frame");
-        t += Time::from_millis(1);
-        if t.as_secs() > 5 {
-            t = Time::ZERO;
-        }
-    }));
+    results.push(bench(
+        "frame_at (16 clips)",
+        2_000,
+        Duration::from_micros(100),
+        || {
+            graph.frame_at(t).expect("frame");
+            t += Time::from_millis(1);
+            if t.as_secs() > 5 {
+                t = Time::ZERO;
+            }
+        },
+    ));
 
     let large = build_project(20, 10);
     let mut graph = RenderGraph::new(large, registry.clone());
     let mut t = Time::ZERO;
-    results.push(bench("frame_at (200 clips)", 500, Duration::from_millis(1), || {
-        graph.frame_at(t).expect("frame");
-        t += Time::from_millis(1);
-        if t.as_secs() > 5 {
-            t = Time::ZERO;
-        }
-    }));
+    results.push(bench(
+        "frame_at (200 clips)",
+        500,
+        Duration::from_millis(1),
+        || {
+            graph.frame_at(t).expect("frame");
+            t += Time::from_millis(1);
+            if t.as_secs() > 5 {
+                t = Time::ZERO;
+            }
+        },
+    ));
 
     // --- project serialisation -------------------------------------------
     let project = build_project(8, 8);
     let bytes = codec::write(&project, &registry, codec::CURRENT_VERSION).expect("write");
     println!("     project file size: {} bytes", bytes.len());
-    results.push(bench("project save (64 clips)", 200, Duration::from_millis(50), || {
-        let _ = codec::write(&project, &registry, codec::CURRENT_VERSION).expect("write");
-    }));
-    results.push(bench("project load (64 clips)", 200, Duration::from_millis(100), || {
-        let (p, _) = codec::read(&bytes, &registry).expect("read");
-        std::hint::black_box(p);
-    }));
+    results.push(bench(
+        "project save (64 clips)",
+        200,
+        Duration::from_millis(50),
+        || {
+            let _ = codec::write(&project, &registry, codec::CURRENT_VERSION).expect("write");
+        },
+    ));
+    results.push(bench(
+        "project load (64 clips)",
+        200,
+        Duration::from_millis(100),
+        || {
+            let (p, _) = codec::read(&bytes, &registry).expect("read");
+            std::hint::black_box(p);
+        },
+    ));
 
     // --- undo / redo ------------------------------------------------------
     let mut project = build_project(2, 4);
     let before = project.clips[0].clone();
-    results.push(bench("undo (clip edit)", 20_000, Duration::from_micros(50), || {
-        let cmd = Command::edit_clip(0, before.clone(), |c| c.opacity = 0.5);
-        let inverse = cmd.apply(&mut project).expect("apply");
-        inverse.apply(&mut project).expect("apply");
-    }));
+    results.push(bench(
+        "undo (clip edit)",
+        20_000,
+        Duration::from_micros(50),
+        || {
+            let cmd = Command::edit_clip(0, before.clone(), |c| c.opacity = 0.5);
+            let inverse = cmd.apply(&mut project).expect("apply");
+            inverse.apply(&mut project).expect("apply");
+        },
+    ));
 
     // --- manifest parsing -------------------------------------------------
     let manifest_json = r#"{"effects":[
         {"id":"com.vimo.effect.blur","params":[{"name":"radius","type":"float","default":4.0}]},
         {"id":"com.vimo.effect.gain","params":[{"name":"gain","type":"float","default":1.0}]}
     ]}"#;
-    results.push(bench("manifest parse", 20_000, Duration::from_micros(200), || {
-        let m = vimo_manifest::Manifest::parse_str(manifest_json).expect("parse");
-        std::hint::black_box(m);
-    }));
+    results.push(bench(
+        "manifest parse",
+        20_000,
+        Duration::from_micros(200),
+        || {
+            let m = vimo_manifest::Manifest::parse_str(manifest_json).expect("parse");
+            std::hint::black_box(m);
+        },
+    ));
 
     // --- frame cache ------------------------------------------------------
     let mut cache = vimo_resources::FrameCache::new(64 * 1024 * 1024);
@@ -155,28 +191,44 @@ fn main() {
             Time::ZERO,
         );
     }
-    results.push(bench("frame cache lookup", 1_000_000, Duration::from_nanos(500), || {
-        let key = vimo_resources::FrameKey::new(1, 500);
-        std::hint::black_box(cache.get(key));
-    }));
+    results.push(bench(
+        "frame cache lookup",
+        1_000_000,
+        Duration::from_nanos(500),
+        || {
+            let key = vimo_resources::FrameKey::new(1, 500);
+            std::hint::black_box(cache.get(key));
+        },
+    ));
 
     // --- audio mixing -----------------------------------------------------
     let mixer = vimo_audio::Mixer::new(2);
     let source = vimo_audio::MixSource::new(vec![0.25; 4096], 2, Time::ZERO);
     let mut out = vec![0.0f32; 4096];
-    results.push(bench("mix 4096 frames", 20_000, Duration::from_micros(200), || {
-        out.fill(0.0);
-        mixer.mix(std::slice::from_ref(&source), Time::ZERO, &mut out);
-    }));
+    results.push(bench(
+        "mix 4096 frames",
+        20_000,
+        Duration::from_micros(200),
+        || {
+            out.fill(0.0);
+            mixer.mix(std::slice::from_ref(&source), Time::ZERO, &mut out);
+        },
+    ));
 
     // --- resampling -------------------------------------------------------
-    let mut resampler = vimo_audio::Resampler::new(44100, 48000, vimo_audio::ResamplerQuality::Cubic);
+    let mut resampler =
+        vimo_audio::Resampler::new(44100, 48000, vimo_audio::ResamplerQuality::Cubic);
     let input: Vec<f32> = (0..1024).map(|i| (i as f32 / 1024.0).sin()).collect();
     let mut sink = Vec::with_capacity(4096);
-    results.push(bench("resample 1024 frames", 20_000, Duration::from_micros(200), || {
-        sink.clear();
-        resampler.process(&input, 1, &mut sink);
-    }));
+    results.push(bench(
+        "resample 1024 frames",
+        20_000,
+        Duration::from_micros(200),
+        || {
+            sink.clear();
+            resampler.process(&input, 1, &mut sink);
+        },
+    ));
 
     // --- effect parameter evaluation -------------------------------------
     let mut project = build_project(1, 2);
@@ -205,12 +257,25 @@ fn main() {
     let node = EffectNode::new(type_id, reg.get(type_id).expect("get"));
     let mut history = History::new();
     let owner = EffectOwner::Clip(0);
-    history.execute(&mut project, Command::AddEffect { owner, effect: node }).expect("effect");
+    history
+        .execute(
+            &mut project,
+            Command::AddEffect {
+                owner,
+                effect: node,
+            },
+        )
+        .expect("effect");
 
     let mut graph = RenderGraph::new(project, reg);
-    results.push(bench("frame_at (1 effect)", 20_000, Duration::from_micros(100), || {
-        std::hint::black_box(graph.frame_at(Time::from_secs(1)).expect("frame"));
-    }));
+    results.push(bench(
+        "frame_at (1 effect)",
+        20_000,
+        Duration::from_micros(100),
+        || {
+            std::hint::black_box(graph.frame_at(Time::from_secs(1)).expect("frame"));
+        },
+    ));
 
     println!();
     let mut failures = 0;
@@ -223,7 +288,11 @@ fn main() {
     if failures == 0 {
         println!("all {} benchmarks within budget", results.len());
     } else {
-        println!("{} of {} benchmarks exceeded their budget", failures, results.len());
+        println!(
+            "{} of {} benchmarks exceeded their budget",
+            failures,
+            results.len()
+        );
         std::process::exit(1);
     }
 }

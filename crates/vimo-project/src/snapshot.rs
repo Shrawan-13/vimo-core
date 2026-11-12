@@ -12,7 +12,7 @@
 //! Snapshots are taken on demand (when the project changes), never per frame,
 //! so the cost does not matter.
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::model::{AssetKind, BlendMode, TransitionKind};
 use crate::project::Project;

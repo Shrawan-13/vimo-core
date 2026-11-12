@@ -4,9 +4,7 @@
 //! The shim is compiled by the NDK's CMake as part of the Android build.
 
 use vimo_foundation::error::{ErrorKind, VimoError};
-use vimo_media::capability::{
-    CapabilityProbe, CodecCapabilities, CodecSupport,
-};
+use vimo_media::capability::{CapabilityProbe, CodecCapabilities, CodecSupport};
 use vimo_media::codec::{AudioCodec, CodecId, PixelFormat};
 
 /// A probe that reports a fixed capability set.
@@ -23,12 +21,12 @@ pub struct AndroidCapabilities {
 impl AndroidCapabilities {
     /// Build a probe.
     #[must_use]
-    pub fn new(
-        capabilities: CodecCapabilities,
-        ram_bytes: u64,
-        max_texture_size: u32,
-    ) -> Self {
-        AndroidCapabilities { capabilities, ram_bytes, max_texture_size }
+    pub fn new(capabilities: CodecCapabilities, ram_bytes: u64, max_texture_size: u32) -> Self {
+        AndroidCapabilities {
+            capabilities,
+            ram_bytes,
+            max_texture_size,
+        }
     }
 
     /// The device's physical memory.
@@ -58,16 +56,51 @@ impl CapabilityProbe for AndroidCapabilities {
 pub fn default_phone_capabilities() -> CodecCapabilities {
     CodecCapabilities {
         video_decoders: vec![
-            CodecSupport { codec: CodecId::H264, hardware: true, max_width: 4096, max_height: 2160 },
-            CodecSupport { codec: CodecId::Hevc, hardware: true, max_width: 4096, max_height: 2160 },
-            CodecSupport { codec: CodecId::Vp9, hardware: true, max_width: 3840, max_height: 2160 },
-            CodecSupport { codec: CodecId::Av1, hardware: false, max_width: 1920, max_height: 1080 },
+            CodecSupport {
+                codec: CodecId::H264,
+                hardware: true,
+                max_width: 4096,
+                max_height: 2160,
+            },
+            CodecSupport {
+                codec: CodecId::Hevc,
+                hardware: true,
+                max_width: 4096,
+                max_height: 2160,
+            },
+            CodecSupport {
+                codec: CodecId::Vp9,
+                hardware: true,
+                max_width: 3840,
+                max_height: 2160,
+            },
+            CodecSupport {
+                codec: CodecId::Av1,
+                hardware: false,
+                max_width: 1920,
+                max_height: 1080,
+            },
         ],
         video_encoders: vec![
-            CodecSupport { codec: CodecId::H264, hardware: true, max_width: 1920, max_height: 1080 },
-            CodecSupport { codec: CodecId::Hevc, hardware: true, max_width: 1920, max_height: 1080 },
+            CodecSupport {
+                codec: CodecId::H264,
+                hardware: true,
+                max_width: 1920,
+                max_height: 1080,
+            },
+            CodecSupport {
+                codec: CodecId::Hevc,
+                hardware: true,
+                max_width: 1920,
+                max_height: 1080,
+            },
         ],
-        audio_codecs: vec![AudioCodec::Aac, AudioCodec::Opus, AudioCodec::Mp3, AudioCodec::Pcm],
+        audio_codecs: vec![
+            AudioCodec::Aac,
+            AudioCodec::Opus,
+            AudioCodec::Mp3,
+            AudioCodec::Pcm,
+        ],
         max_decoder_instances: 8,
         max_texture_size: 4096,
         sampleable_formats: vec![

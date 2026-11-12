@@ -141,7 +141,10 @@ mod tests {
     fn a_manifest_registers_its_effects() {
         let mut library = ShaderLibrary::new();
         assert_eq!(library.load_manifest(MANIFEST).unwrap(), 2);
-        assert!(library.registry().lookup("com.vimo.effect.brightness").is_some());
+        assert!(library
+            .registry()
+            .lookup("com.vimo.effect.brightness")
+            .is_some());
     }
 
     #[test]
@@ -149,7 +152,10 @@ mod tests {
         let mut library = ShaderLibrary::new();
         library.load_manifest(MANIFEST).unwrap();
         library.add_source("vimo/shaders/brightness.frag", "void main() {}");
-        let id = library.registry().lookup("com.vimo.effect.brightness").unwrap();
+        let id = library
+            .registry()
+            .lookup("com.vimo.effect.brightness")
+            .unwrap();
         assert!(library.fragment_source(id).is_ok());
     }
 
@@ -157,7 +163,10 @@ mod tests {
     fn a_missing_source_is_an_error() {
         let mut library = ShaderLibrary::new();
         library.load_manifest(MANIFEST).unwrap();
-        let id = library.registry().lookup("com.vimo.effect.brightness").unwrap();
+        let id = library
+            .registry()
+            .lookup("com.vimo.effect.brightness")
+            .unwrap();
         assert!(library.fragment_source(id).is_err());
     }
 

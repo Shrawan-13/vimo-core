@@ -99,19 +99,31 @@ impl VimoError {
     /// Build an error with only a kind.
     #[must_use]
     pub const fn new(kind: ErrorKind) -> Self {
-        Self { kind, context: None, detail: None }
+        Self {
+            kind,
+            context: None,
+            detail: None,
+        }
     }
 
     /// Build an error with a static context string (no allocation).
     #[must_use]
     pub const fn ctx(kind: ErrorKind, context: &'static str) -> Self {
-        Self { kind, context: Some(context), detail: None }
+        Self {
+            kind,
+            context: Some(context),
+            detail: None,
+        }
     }
 
     /// Build an error with a kind, static context and an owned detail message.
     #[must_use]
     pub fn detailed(kind: ErrorKind, context: &'static str, detail: impl Into<String>) -> Self {
-        Self { kind, context: Some(context), detail: Some(detail.into()) }
+        Self {
+            kind,
+            context: Some(context),
+            detail: Some(detail.into()),
+        }
     }
 
     /// The error classification.
@@ -165,7 +177,9 @@ impl From<std::io::Error> for VimoError {
     fn from(e: std::io::Error) -> Self {
         let kind = match e.kind() {
             std::io::ErrorKind::NotFound => ErrorKind::NotFound,
-            std::io::ErrorKind::InvalidInput | std::io::ErrorKind::InvalidData => ErrorKind::InvalidArgument,
+            std::io::ErrorKind::InvalidInput | std::io::ErrorKind::InvalidData => {
+                ErrorKind::InvalidArgument
+            }
             std::io::ErrorKind::UnexpectedEof => ErrorKind::Format,
             std::io::ErrorKind::TimedOut => ErrorKind::Timeout,
             std::io::ErrorKind::Interrupted => ErrorKind::Cancelled,

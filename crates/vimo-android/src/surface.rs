@@ -78,7 +78,10 @@ impl SurfaceResolver {
     /// A resolver with no sources.
     #[must_use]
     pub fn new() -> Self {
-        SurfaceResolver { textures: SurfaceTextures::new(), clip_sources: HashMap::new() }
+        SurfaceResolver {
+            textures: SurfaceTextures::new(),
+            clip_sources: HashMap::new(),
+        }
     }
 
     /// Tell the resolver which source a clip plays.
@@ -115,16 +118,13 @@ impl vimo_render::TextureResolver for SurfaceResolver {
 
 impl SurfaceSource for SurfaceResolver {
     fn acquire(&mut self, picture: SurfacePicture) -> VimoResult<SurfaceTexture> {
-        self.textures
-            .get(picture.source)
-            .copied()
-            .ok_or_else(|| {
-                VimoError::detailed(
-                    ErrorKind::NotFound,
-                    "surface",
-                    format!("no surface texture for source {}", picture.source),
-                )
-            })
+        self.textures.get(picture.source).copied().ok_or_else(|| {
+            VimoError::detailed(
+                ErrorKind::NotFound,
+                "surface",
+                format!("no surface texture for source {}", picture.source),
+            )
+        })
     }
 
     fn release(&mut self, texture: SurfaceTexture) {

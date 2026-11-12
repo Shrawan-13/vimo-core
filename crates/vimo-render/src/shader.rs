@@ -167,7 +167,11 @@ pub fn parse_uniforms(source: &str) -> Vec<ShaderUniform> {
                 }
                 None => (declarator.to_string(), 0),
             };
-            out.push(ShaderUniform { name, gl_type, array_size });
+            out.push(ShaderUniform {
+                name,
+                gl_type,
+                array_size,
+            });
         }
     }
     out
@@ -212,7 +216,9 @@ pub fn validate_uniforms(uniforms: &[ShaderUniform], desc: &EffectDesc) -> Vec<U
             continue;
         };
         let Some(index) = desc.param_index(param_name) else {
-            mismatches.push(UniformMismatch::MissingParam { uniform: uniform.name.clone() });
+            mismatches.push(UniformMismatch::MissingParam {
+                uniform: uniform.name.clone(),
+            });
             continue;
         };
         let param = desc.param(index).expect("index in range");
@@ -248,7 +254,11 @@ pub fn unused_parameters(uniforms: &[ShaderUniform], desc: &EffectDesc) -> Vec<S
 /// Resolves effect types to compiled programs.
 pub trait ShaderProvider {
     /// Return the program for an effect type, compiling it if necessary.
-    fn program_for(&mut self, effect_type: EffectTypeId, desc: &EffectDesc) -> VimoResult<ProgramId>;
+    fn program_for(
+        &mut self,
+        effect_type: EffectTypeId,
+        desc: &EffectDesc,
+    ) -> VimoResult<ProgramId>;
 
     /// Release a single program.
     fn release(&mut self, program: ProgramId);
@@ -275,7 +285,11 @@ impl NullShaderProvider {
 }
 
 impl ShaderProvider for NullShaderProvider {
-    fn program_for(&mut self, _effect_type: EffectTypeId, desc: &EffectDesc) -> VimoResult<ProgramId> {
+    fn program_for(
+        &mut self,
+        _effect_type: EffectTypeId,
+        desc: &EffectDesc,
+    ) -> VimoResult<ProgramId> {
         if desc.capabilities.requires_gpu {
             return Err(unsupported("shader: no GPU available"));
         }
@@ -357,14 +371,20 @@ mod tests {
         let uniforms = parse_uniforms("uniform float u_radius;\nuniform float u_missing;");
         let mismatches = validate_uniforms(&uniforms, &desc());
         assert_eq!(mismatches.len(), 1);
-        assert!(matches!(mismatches[0], UniformMismatch::MissingParam { .. }));
+        assert!(matches!(
+            mismatches[0],
+            UniformMismatch::MissingParam { .. }
+        ));
     }
 
     #[test]
     fn type_mismatches_are_detected() {
         let uniforms = parse_uniforms("uniform vec2 u_radius;");
         let mismatches = validate_uniforms(&uniforms, &desc());
-        assert!(matches!(mismatches[0], UniformMismatch::TypeMismatch { .. }));
+        assert!(matches!(
+            mismatches[0],
+            UniformMismatch::TypeMismatch { .. }
+        ));
     }
 
     #[test]

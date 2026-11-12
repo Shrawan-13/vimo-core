@@ -175,14 +175,34 @@ impl Drop for Span {
 #[must_use]
 pub fn span(name: &'static str) -> Span {
     if !is_enabled() {
-        return Span { name, id: 0, start: Instant::now(), arg0: 0, arg1: 0, active: false };
+        return Span {
+            name,
+            id: 0,
+            start: Instant::now(),
+            arg0: 0,
+            arg1: 0,
+            active: false,
+        };
     }
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-    let info = SpanInfo { name, id, duration_ns: 0, arg0: 0, arg1: 0 };
+    let info = SpanInfo {
+        name,
+        id,
+        duration_ns: 0,
+        arg0: 0,
+        arg1: 0,
+    };
     if let Some(sink) = current_sink() {
         sink.on_start(&info);
     }
-    Span { name, id, start: Instant::now(), arg0: 0, arg1: 0, active: true }
+    Span {
+        name,
+        id,
+        start: Instant::now(),
+        arg0: 0,
+        arg1: 0,
+        active: true,
+    }
 }
 
 /// Measure a closure inside a span.

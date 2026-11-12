@@ -139,7 +139,11 @@ impl Project {
     /// Position of a clip within its track's clip list.
     #[must_use]
     pub fn clip_position(&self, track: TrackId, clip: ClipId) -> Option<usize> {
-        self.tracks.get(track as usize)?.clips.iter().position(|c| *c == clip)
+        self.tracks
+            .get(track as usize)?
+            .clips
+            .iter()
+            .position(|c| *c == clip)
     }
 
     /// The clip that covers `time` on `track`, if any.
@@ -188,9 +192,9 @@ impl Project {
             t.track == track
                 && t.duration > Time::ZERO
                 && t.from_clip != t.to_clip
-                && self
-                    .clip(t.from_clip)
-                    .is_some_and(|c| time >= c.timeline.start && time < c.timeline.start + t.duration)
+                && self.clip(t.from_clip).is_some_and(|c| {
+                    time >= c.timeline.start && time < c.timeline.start + t.duration
+                })
         })
     }
 
@@ -281,7 +285,9 @@ impl Project {
                 || !self.clips[t.from_clip as usize].alive
                 || !self.clips[t.to_clip as usize].alive
             {
-                return Err(invalid_state("project: transition references a missing clip"));
+                return Err(invalid_state(
+                    "project: transition references a missing clip",
+                ));
             }
         }
         Ok(())

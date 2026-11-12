@@ -38,7 +38,11 @@ impl SessionFiles {
     }
 
     /// Write a snapshot of the project.
-    pub fn autosave(&mut self, project: &Project, registry: &EffectRegistry) -> VimoResult<PathBuf> {
+    pub fn autosave(
+        &mut self,
+        project: &Project,
+        registry: &EffectRegistry,
+    ) -> VimoResult<PathBuf> {
         let store = self
             .autosave
             .as_mut()
@@ -55,7 +59,12 @@ impl SessionFiles {
     }
 
     /// Write the project to `path`.
-    pub fn save(&self, project: &Project, registry: &EffectRegistry, path: &Path) -> VimoResult<()> {
+    pub fn save(
+        &self,
+        project: &Project,
+        registry: &EffectRegistry,
+        path: &Path,
+    ) -> VimoResult<()> {
         let bytes = codec::write(project, registry, codec::CURRENT_VERSION)?;
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
@@ -89,7 +98,10 @@ impl SessionFiles {
     }
 
     /// Load a project from `path`.
-    pub fn load(path: &Path, registry: &EffectRegistry) -> VimoResult<(Project, codec::LoadReport)> {
+    pub fn load(
+        path: &Path,
+        registry: &EffectRegistry,
+    ) -> VimoResult<(Project, codec::LoadReport)> {
         let bytes = std::fs::read(path).map_err(|e| {
             vimo_foundation::error::VimoError::detailed(
                 vimo_foundation::ErrorKind::Io,
@@ -114,7 +126,10 @@ mod tests {
 
     fn project() -> Project {
         let mut p = Project::new();
-        p.assets.push(Asset::video("src", vimo_foundation::time::Time::from_secs(5)));
+        p.assets.push(Asset::video(
+            "src",
+            vimo_foundation::time::Time::from_secs(5),
+        ));
         p.tracks.push(Track::new("V1", TrackKind::Video));
         p
     }

@@ -46,7 +46,10 @@ impl<'a> Reader<'a> {
 
     /// Read `n` raw bytes.
     pub fn bytes(&mut self, n: usize) -> VimoResult<&'a [u8]> {
-        let end = self.pos.checked_add(n).ok_or_else(|| malformed("read: length overflow"))?;
+        let end = self
+            .pos
+            .checked_add(n)
+            .ok_or_else(|| malformed("read: length overflow"))?;
         if end > self.data.len() {
             return Err(malformed("read: unexpected end of data"));
         }
@@ -80,7 +83,9 @@ impl<'a> Reader<'a> {
     /// Read a little-endian `u64`.
     pub fn u64(&mut self) -> VimoResult<u64> {
         let b = self.bytes(8)?;
-        Ok(u64::from_le_bytes([b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7]]))
+        Ok(u64::from_le_bytes([
+            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+        ]))
     }
 
     /// Read a little-endian `i32`.

@@ -56,7 +56,11 @@ pub struct SlotMap<T> {
 
 impl<T> Default for SlotMap<T> {
     fn default() -> Self {
-        SlotMap { slots: Vec::new(), free: Vec::new(), len: 0 }
+        SlotMap {
+            slots: Vec::new(),
+            free: Vec::new(),
+            len: 0,
+        }
     }
 }
 
@@ -70,7 +74,11 @@ impl<T> SlotMap<T> {
     /// Create an empty map with reserved capacity.
     #[must_use]
     pub fn with_capacity(cap: usize) -> Self {
-        SlotMap { slots: Vec::with_capacity(cap), free: Vec::new(), len: 0 }
+        SlotMap {
+            slots: Vec::with_capacity(cap),
+            free: Vec::new(),
+            len: 0,
+        }
     }
 
     /// Insert a value, returning its handle.
@@ -79,11 +87,22 @@ impl<T> SlotMap<T> {
         if let Some(index) = self.free.pop() {
             let slot = &mut self.slots[index as usize];
             slot.value = Some(value);
-            Handle { index, generation: slot.generation, _marker: PhantomData }
+            Handle {
+                index,
+                generation: slot.generation,
+                _marker: PhantomData,
+            }
         } else {
             let index = u32::try_from(self.slots.len()).expect("SlotMap exceeded u32::MAX slots");
-            self.slots.push(Slot { generation: 0, value: Some(value) });
-            Handle { index, generation: 0, _marker: PhantomData }
+            self.slots.push(Slot {
+                generation: 0,
+                value: Some(value),
+            });
+            Handle {
+                index,
+                generation: 0,
+                _marker: PhantomData,
+            }
         }
     }
 
@@ -159,7 +178,11 @@ impl<T> SlotMap<T> {
         self.slots.iter().enumerate().filter_map(|(i, s)| {
             s.value.as_ref().map(|v| {
                 (
-                    Handle { index: i as u32, generation: s.generation, _marker: PhantomData },
+                    Handle {
+                        index: i as u32,
+                        generation: s.generation,
+                        _marker: PhantomData,
+                    },
                     v,
                 )
             })
@@ -268,7 +291,11 @@ impl DenseMap {
 
     fn ensure_capacity(&mut self, additional: usize) {
         let needed = self.keys.len() + additional;
-        let mut cap = if self.lookup.is_empty() { 64 } else { self.lookup.len() };
+        let mut cap = if self.lookup.is_empty() {
+            64
+        } else {
+            self.lookup.len()
+        };
         // Keep the load factor below 0.7 so probe chains stay short.
         while cap * 7 < needed * 10 {
             cap *= 2;

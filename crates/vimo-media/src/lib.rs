@@ -30,16 +30,18 @@ pub mod proxy;
 pub mod surface;
 pub mod vfr;
 
-pub use capability::{low_end_phone, modern_phone, CapabilityProbe, CodecCapabilities, CodecSupport, StaticCapabilities};
+pub use capability::{
+    low_end_phone, modern_phone, CapabilityProbe, CodecCapabilities, CodecSupport,
+    StaticCapabilities,
+};
 pub use codec::{
     AudioCodec, AudioFormat, CodecId, ColorSpace, MediaFormat, PixelFormat, Rotation, VideoFormat,
 };
 pub use decoder::{
-    Decoder, DecoderConfig, Encoder, EncoderConfig, EncodedChunk, FakeDecoder, FakeEncoder, SeekMode,
+    Decoder, DecoderConfig, EncodedChunk, Encoder, EncoderConfig, FakeDecoder, FakeEncoder,
+    SeekMode,
 };
 pub use frame::{AudioBuffer, FrameBuffer, VideoFrame};
+pub use proxy::{ProxyJob, ProxyPolicy, ProxyRunner, ProxyScheduler, ProxyState, ProxyUpdate};
 pub use surface::{NoSurfaceSource, SurfacePicture, SurfaceSource, SurfaceTexture, TextureBacking};
-pub use proxy::{
-    ProxyJob, ProxyPolicy, ProxyRunner, ProxyScheduler, ProxyState, ProxyUpdate,
-};
 pub use vfr::VfrTable;

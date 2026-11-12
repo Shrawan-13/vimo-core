@@ -208,7 +208,10 @@ pub fn write(project: &Project, registry: &EffectRegistry, version: u32) -> Vimo
     let mut effects = Writer::new();
     effects.u32(project.effects.len() as u32);
     for e in &project.effects {
-        let type_id = registry.get(e.effect_type).map(|d| d.id.clone()).unwrap_or_default();
+        let type_id = registry
+            .get(e.effect_type)
+            .map(|d| d.id.clone())
+            .unwrap_or_default();
         effects.str(&type_id);
         effects.bool(e.enabled);
         effects.u64(e.revision);
@@ -317,10 +320,16 @@ fn read_param_value(r: &mut Reader, version: u32) -> VimoResult<ParamValue> {
         PT_BOOL => ParamValue::Bool(r.bool()?),
         PT_COLOR => {
             let b = r.bytes(4)?;
-            ParamValue::Color(Rgba8::from_u32(u32::from_le_bytes([b[0], b[1], b[2], b[3]])))
+            ParamValue::Color(Rgba8::from_u32(u32::from_le_bytes([
+                b[0], b[1], b[2], b[3],
+            ])))
         }
         PT_VEC2 => ParamValue::Vec2(Vec2::new(r.f32()?, r.f32()?)),
-        PT_VEC3 => ParamValue::Vec3(vimo_foundation::math::Vec3::new(r.f32()?, r.f32()?, r.f32()?)),
+        PT_VEC3 => ParamValue::Vec3(vimo_foundation::math::Vec3::new(
+            r.f32()?,
+            r.f32()?,
+            r.f32()?,
+        )),
         PT_ENUM => ParamValue::Enum(r.u16()?),
         other => {
             return Err(VimoError::detailed(
@@ -362,7 +371,10 @@ fn read_params(
     // Everything present in the file is an explicit override of the default.
     let mut store = vimo_manifest::ParamStore::from_values(values);
     for i in 0..store.len() {
-        store.set(i as u16, store.get(i as u16).unwrap_or(ParamValue::Float(0.0)));
+        store.set(
+            i as u16,
+            store.get(i as u16).unwrap_or(ParamValue::Float(0.0)),
+        );
     }
     Ok((store, 0))
 }
@@ -423,7 +435,9 @@ pub fn read(bytes: &[u8], registry: &EffectRegistry) -> VimoResult<(Project, Loa
         return Err(VimoError::detailed(
             ErrorKind::Unsupported,
             "project",
-            format!("format version {version} is newer than this build supports ({CURRENT_VERSION})"),
+            format!(
+                "format version {version} is newer than this build supports ({CURRENT_VERSION})"
+            ),
         ));
     }
 
@@ -437,7 +451,10 @@ pub fn read(bytes: &[u8], registry: &EffectRegistry) -> VimoResult<(Project, Loa
     }
 
     let mut project = Project::new();
-    let mut report = LoadReport { source_version: version, ..Default::default() };
+    let mut report = LoadReport {
+        source_version: version,
+        ..Default::default()
+    };
 
     // --- meta -----------------------------------------------------------
     for (tag, payload) in &sections {
@@ -544,7 +561,11 @@ pub fn read(bytes: &[u8], registry: &EffectRegistry) -> VimoResult<(Project, Loa
                     let time = Time::from_nanos(e.i64()?);
                     let value = read_param_value(&mut e, version)?;
                     let interpolation = read_interpolation(&mut e)?;
-                    keys.push(Keyframe { time, value, interpolation });
+                    keys.push(Keyframe {
+                        time,
+                        value,
+                        interpolation,
+                    });
                 }
                 animation.push(AnimTrack { param, keys });
             }
@@ -786,7 +807,11 @@ mod tests {
         assert_eq!(report.source_version, 1);
         assert_eq!(report.migrated_to, Some(CURRENT_VERSION));
         // v1 stored opacity as an integer percentage, so 0.5 round-trips as 0.5.
-        assert!((q.clips[0].opacity - 0.5).abs() < 0.011, "opacity={}", q.clips[0].opacity);
+        assert!(
+            (q.clips[0].opacity - 0.5).abs() < 0.011,
+            "opacity={}",
+            q.clips[0].opacity
+        );
     }
 
     #[test]
@@ -810,7 +835,10 @@ mod tests {
         let p = sample();
         let bytes = write(&p, &reg, CURRENT_VERSION).unwrap();
         for cut in [4usize, 8, 16, bytes.len() - 1] {
-            assert!(read(&bytes[..cut], &reg).is_err(), "cut at {cut} should fail");
+            assert!(
+                read(&bytes[..cut], &reg).is_err(),
+                "cut at {cut} should fail"
+            );
         }
     }
 

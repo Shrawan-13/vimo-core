@@ -348,9 +348,17 @@ mod tests {
     #[test]
     fn writes_typed_values() {
         let mut b = UniformBlock::new();
-        assert!(write_param(&mut b, ParamType::Float, ParamValue::Float(1.5)));
+        assert!(write_param(
+            &mut b,
+            ParamType::Float,
+            ParamValue::Float(1.5)
+        ));
         assert!(write_param(&mut b, ParamType::Int, ParamValue::Int(3)));
-        assert!(write_param(&mut b, ParamType::Color, ParamValue::Color(Rgba8::WHITE)));
+        assert!(write_param(
+            &mut b,
+            ParamType::Color,
+            ParamValue::Color(Rgba8::WHITE)
+        ));
         assert_eq!(b.floats(), &[1.5]);
         assert_eq!(b.ints(), &[3]);
         assert_eq!(b.vec4s().len(), 1);

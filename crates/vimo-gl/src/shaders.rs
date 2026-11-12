@@ -142,7 +142,10 @@ mod tests {
             TRANSITION_FRAGMENT_SHADER,
             TRANSITION_VERTEX_SHADER,
         ] {
-            assert!(source.starts_with("#version 300 es"), "missing version directive");
+            assert!(
+                source.starts_with("#version 300 es"),
+                "missing version directive"
+            );
             assert!(source.contains("void main()"), "missing entry point");
             assert!(source.trim_end().ends_with('}'), "unbalanced braces");
         }

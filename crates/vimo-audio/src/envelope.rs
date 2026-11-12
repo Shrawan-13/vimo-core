@@ -48,7 +48,12 @@ pub struct GainEnvelope {
 
 impl Default for GainEnvelope {
     fn default() -> Self {
-        GainEnvelope { fade_in: Time::ZERO, fade_out: Time::ZERO, curve: FadeCurve::Linear, gain: 1.0 }
+        GainEnvelope {
+            fade_in: Time::ZERO,
+            fade_out: Time::ZERO,
+            curve: FadeCurve::Linear,
+            gain: 1.0,
+        }
     }
 }
 
@@ -56,7 +61,12 @@ impl GainEnvelope {
     /// A linear envelope with the given fades.
     #[must_use]
     pub fn linear(fade_in: Time, fade_out: Time) -> Self {
-        GainEnvelope { fade_in, fade_out, curve: FadeCurve::Linear, gain: 1.0 }
+        GainEnvelope {
+            fade_in,
+            fade_out,
+            curve: FadeCurve::Linear,
+            gain: 1.0,
+        }
     }
 
     /// The gain at `position` within a clip of duration `duration`.
@@ -139,10 +149,7 @@ impl AutomationCurve {
                 if time >= last.0 {
                     return last.1;
                 }
-                let idx = self
-                    .points
-                    .partition_point(|(t, _)| *t <= time)
-                    .max(1);
+                let idx = self.points.partition_point(|(t, _)| *t <= time).max(1);
                 let (t0, g0) = self.points[idx - 1];
                 let (t1, g1) = self.points[idx];
                 let span = (t1 - t0).as_secs_f64();

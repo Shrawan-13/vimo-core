@@ -138,7 +138,10 @@ impl Mixer {
     /// A mixer with the given output channel count.
     #[must_use]
     pub fn new(output_channels: u16) -> Self {
-        Mixer { master_gain: 1.0, output_channels: output_channels.max(1) }
+        Mixer {
+            master_gain: 1.0,
+            output_channels: output_channels.max(1),
+        }
     }
 
     /// Mix `sources` into `output`.
@@ -185,7 +188,11 @@ impl Mixer {
             -((-offset) / 1_000_000_000) * in_channels as i64
         };
         // Skip the part of the source that lies before the window.
-        let skip = if start_frame < 0 { (-start_frame) as usize } else { 0 };
+        let skip = if start_frame < 0 {
+            (-start_frame) as usize
+        } else {
+            0
+        };
         let base = start_frame.max(0) as usize;
         let span = Time::from_nanos((frames as i64) * 1_000_000_000 / 44_100);
 
@@ -232,7 +239,10 @@ impl Peak {
     /// Combine two peaks.
     #[must_use]
     pub fn merge(self, other: Peak) -> Peak {
-        Peak { min: self.min.min(other.min), max: self.max.max(other.max) }
+        Peak {
+            min: self.min.min(other.min),
+            max: self.max.max(other.max),
+        }
     }
 
     /// The peak-to-peak amplitude.

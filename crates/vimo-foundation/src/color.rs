@@ -15,11 +15,26 @@ pub struct Rgba8 {
 
 impl Rgba8 {
     /// Opaque black.
-    pub const BLACK: Rgba8 = Rgba8 { r: 0, g: 0, b: 0, a: 255 };
+    pub const BLACK: Rgba8 = Rgba8 {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 255,
+    };
     /// Opaque white.
-    pub const WHITE: Rgba8 = Rgba8 { r: 255, g: 255, b: 255, a: 255 };
+    pub const WHITE: Rgba8 = Rgba8 {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
     /// Fully transparent.
-    pub const TRANSPARENT: Rgba8 = Rgba8 { r: 0, g: 0, b: 0, a: 0 };
+    pub const TRANSPARENT: Rgba8 = Rgba8 {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 0,
+    };
 
     /// Construct.
     #[must_use]
@@ -111,9 +126,19 @@ pub struct RgbaF32 {
 
 impl RgbaF32 {
     /// Transparent black.
-    pub const TRANSPARENT: RgbaF32 = RgbaF32 { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+    pub const TRANSPARENT: RgbaF32 = RgbaF32 {
+        r: 0.0,
+        g: 0.0,
+        b: 0.0,
+        a: 0.0,
+    };
     /// Opaque white.
-    pub const WHITE: RgbaF32 = RgbaF32 { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    pub const WHITE: RgbaF32 = RgbaF32 {
+        r: 1.0,
+        g: 1.0,
+        b: 1.0,
+        a: 1.0,
+    };
 
     /// Construct.
     #[must_use]

@@ -19,5 +19,5 @@ pub mod tier;
 
 pub use thermal::{ThermalMonitor, ThermalReading, ThermalState};
 pub use tier::{
-    settings_for_tier, DeviceProfile, DeviceProbe, DeviceTier, QualitySettings, StaticProfile,
+    settings_for_tier, DeviceProbe, DeviceProfile, DeviceTier, QualitySettings, StaticProfile,
 };

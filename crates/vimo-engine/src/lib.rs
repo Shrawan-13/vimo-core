@@ -35,7 +35,7 @@ pub mod render_thread;
 pub use audio::{AudioSource, PlaybackAudio, SilentAudioSource};
 pub use clock::{ManualClock, MasterClock, MonotonicClock, PlaybackState, TimeSource};
 pub use engine::{Engine, EngineEvent, PlaybackStats};
-pub use files::{project_snapshot, SessionFiles};
 pub use export::{ExportPipeline, ExportPreset, ExportProgress, ExportState};
+pub use files::{project_snapshot, SessionFiles};
 pub use prefetch::{ActiveSource, PrefetchRequest, Prefetcher};
 pub use render_thread::{RenderCommand, RenderContext, RenderThread};

@@ -18,7 +18,9 @@ impl Writer {
     /// A new writer with reserved capacity.
     #[must_use]
     pub fn with_capacity(cap: usize) -> Self {
-        Writer { buf: Vec::with_capacity(cap) }
+        Writer {
+            buf: Vec::with_capacity(cap),
+        }
     }
 
     /// Write a `u8`.
@@ -112,12 +114,13 @@ impl Writer {
 
 /// Write a project-like structure to any sink. Helper for tests and tooling.
 pub fn write_to<W: std::io::Write>(w: &mut W, bytes: &[u8]) -> VimoResult<()> {
-    w.write_all(bytes)
-        .map_err(|e| vimo_foundation::error::VimoError::detailed(
+    w.write_all(bytes).map_err(|e| {
+        vimo_foundation::error::VimoError::detailed(
             vimo_foundation::ErrorKind::Io,
             "codec",
             e.to_string(),
-        ))
+        )
+    })
 }
 
 #[cfg(test)]

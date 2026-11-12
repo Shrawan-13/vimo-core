@@ -51,7 +51,11 @@ impl ProxyPolicy {
         let scale = (max_width as f64 / width as f64).min(1.0);
         let w = ((width as f64 * scale).round() as u32).max(2) & !1;
         let h = ((height as f64 * scale).round() as u32).max(2) & !1;
-        ProxyPolicy { width: w, height: h, ..ProxyPolicy::default() }
+        ProxyPolicy {
+            width: w,
+            height: h,
+            ..ProxyPolicy::default()
+        }
     }
 
     /// Whether the policy is actually smaller than the source.

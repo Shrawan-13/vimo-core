@@ -163,12 +163,18 @@ mod tests {
         reg.register(desc).unwrap();
 
         let mut p = Project::new();
-        let mut node = crate::model::EffectNode::new(vimo_manifest::EffectTypeId::from_index(0), reg.get(vimo_manifest::EffectTypeId::from_index(0)).unwrap());
+        let mut node = crate::model::EffectNode::new(
+            vimo_manifest::EffectTypeId::from_index(0),
+            reg.get(vimo_manifest::EffectTypeId::from_index(0)).unwrap(),
+        );
         node.params.set(0, vimo_manifest::ParamValue::Float(4.0));
         p.effects.push(node);
 
         let coerced = migrate_2_to_3(&mut p, &reg);
         assert_eq!(coerced, 1);
-        assert_eq!(p.effects[0].params.get(0), Some(vimo_manifest::ParamValue::Int(4)));
+        assert_eq!(
+            p.effects[0].params.get(0),
+            Some(vimo_manifest::ParamValue::Int(4))
+        );
     }
 }

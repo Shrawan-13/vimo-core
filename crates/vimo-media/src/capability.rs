@@ -68,9 +68,8 @@ impl CodecCapabilities {
     /// Whether a codec can be decoded at the given resolution.
     #[must_use]
     pub fn can_decode_size(&self, codec: CodecId, width: u32, height: u32) -> bool {
-        self.best_decoder(codec).is_some_and(|d| {
-            width <= d.max_width && height <= d.max_height
-        })
+        self.best_decoder(codec)
+            .is_some_and(|d| width <= d.max_width && height <= d.max_height)
     }
 
     /// The best encoder for a codec.
@@ -121,19 +120,58 @@ impl CapabilityProbe for StaticCapabilities {
 pub fn modern_phone() -> CodecCapabilities {
     CodecCapabilities {
         video_decoders: vec![
-            CodecSupport { codec: CodecId::H264, hardware: true, max_width: 4096, max_height: 2160 },
-            CodecSupport { codec: CodecId::Hevc, hardware: true, max_width: 4096, max_height: 2160 },
-            CodecSupport { codec: CodecId::Vp9, hardware: true, max_width: 3840, max_height: 2160 },
-            CodecSupport { codec: CodecId::Av1, hardware: false, max_width: 1920, max_height: 1080 },
+            CodecSupport {
+                codec: CodecId::H264,
+                hardware: true,
+                max_width: 4096,
+                max_height: 2160,
+            },
+            CodecSupport {
+                codec: CodecId::Hevc,
+                hardware: true,
+                max_width: 4096,
+                max_height: 2160,
+            },
+            CodecSupport {
+                codec: CodecId::Vp9,
+                hardware: true,
+                max_width: 3840,
+                max_height: 2160,
+            },
+            CodecSupport {
+                codec: CodecId::Av1,
+                hardware: false,
+                max_width: 1920,
+                max_height: 1080,
+            },
         ],
         video_encoders: vec![
-            CodecSupport { codec: CodecId::H264, hardware: true, max_width: 1920, max_height: 1080 },
-            CodecSupport { codec: CodecId::Hevc, hardware: true, max_width: 1920, max_height: 1080 },
+            CodecSupport {
+                codec: CodecId::H264,
+                hardware: true,
+                max_width: 1920,
+                max_height: 1080,
+            },
+            CodecSupport {
+                codec: CodecId::Hevc,
+                hardware: true,
+                max_width: 1920,
+                max_height: 1080,
+            },
         ],
-        audio_codecs: vec![AudioCodec::Aac, AudioCodec::Opus, AudioCodec::Mp3, AudioCodec::Pcm],
+        audio_codecs: vec![
+            AudioCodec::Aac,
+            AudioCodec::Opus,
+            AudioCodec::Mp3,
+            AudioCodec::Pcm,
+        ],
         max_decoder_instances: 8,
         max_texture_size: 4096,
-        sampleable_formats: vec![PixelFormat::Rgba8888, PixelFormat::Bgra8888, PixelFormat::Surface],
+        sampleable_formats: vec![
+            PixelFormat::Rgba8888,
+            PixelFormat::Bgra8888,
+            PixelFormat::Surface,
+        ],
     }
 }
 
@@ -142,9 +180,24 @@ pub fn modern_phone() -> CodecCapabilities {
 pub fn low_end_phone() -> CodecCapabilities {
     CodecCapabilities {
         video_decoders: vec![
-            CodecSupport { codec: CodecId::H264, hardware: true, max_width: 1920, max_height: 1080 },
-            CodecSupport { codec: CodecId::Hevc, hardware: false, max_width: 1920, max_height: 1080 },
-            CodecSupport { codec: CodecId::Vp8, hardware: false, max_width: 1280, max_height: 720 },
+            CodecSupport {
+                codec: CodecId::H264,
+                hardware: true,
+                max_width: 1920,
+                max_height: 1080,
+            },
+            CodecSupport {
+                codec: CodecId::Hevc,
+                hardware: false,
+                max_width: 1920,
+                max_height: 1080,
+            },
+            CodecSupport {
+                codec: CodecId::Vp8,
+                hardware: false,
+                max_width: 1280,
+                max_height: 720,
+            },
         ],
         video_encoders: vec![CodecSupport {
             codec: CodecId::H264,

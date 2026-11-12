@@ -313,7 +313,10 @@ impl Rational {
             den = -den;
         }
         let g = gcd(num.unsigned_abs(), den as u64).max(1);
-        Some(Rational { num: num / g as i64, den: den / g as i64 })
+        Some(Rational {
+            num: num / g as i64,
+            den: den / g as i64,
+        })
     }
 
     /// Construct, panicking on a zero denominator. Use in `const` contexts.
@@ -337,7 +340,10 @@ impl Rational {
             b = t;
         }
         let g = if a == 0 { 1 } else { a };
-        Rational { num: n / g as i64, den: d / g as i64 }
+        Rational {
+            num: n / g as i64,
+            den: d / g as i64,
+        }
     }
 
     /// Numerator (sign carries the value).
@@ -371,7 +377,10 @@ impl Rational {
     /// Checked addition.
     #[must_use]
     pub fn checked_add(self, rhs: Rational) -> Option<Rational> {
-        let (n, d) = (self.num as i128 * rhs.den as i128 + rhs.num as i128 * self.den as i128, self.den as i128 * rhs.den as i128);
+        let (n, d) = (
+            self.num as i128 * rhs.den as i128 + rhs.num as i128 * self.den as i128,
+            self.den as i128 * rhs.den as i128,
+        );
         if n > i64::MAX as i128 || n < i64::MIN as i128 || d > i64::MAX as i128 {
             return None;
         }
@@ -428,7 +437,10 @@ impl Timebase {
     /// A non-drop-frame timebase.
     #[must_use]
     pub const fn from_fps(num: i64, den: i64) -> Self {
-        Timebase { fps: Rational::new_const(num, den), drop_frame: false }
+        Timebase {
+            fps: Rational::new_const(num, den),
+            drop_frame: false,
+        }
     }
 
     /// A timebase with explicit drop-frame flag.
@@ -452,7 +464,8 @@ impl Timebase {
     /// True if this timebase can express drop-frame numbering (29.97 or 59.94).
     #[must_use]
     pub const fn supports_drop_frame(self) -> bool {
-        self.fps.num == 30000 && self.fps.den == 1001 || self.fps.num == 60000 && self.fps.den == 1001
+        self.fps.num == 30000 && self.fps.den == 1001
+            || self.fps.num == 60000 && self.fps.den == 1001
     }
 
     /// Nanoseconds per frame as an exact rational (`1e9 / fps`).
@@ -641,7 +654,10 @@ impl TimeRange {
     /// Construct a range; `end` is clamped to be `>= start`.
     #[must_use]
     pub fn new(start: Time, end: Time) -> Self {
-        TimeRange { start, end: end.max(start) }
+        TimeRange {
+            start,
+            end: end.max(start),
+        }
     }
 
     /// A zero-length range at `at`.
@@ -689,7 +705,10 @@ impl TimeRange {
     /// Shift the range by `delta`.
     #[must_use]
     pub fn shifted(self, delta: Time) -> TimeRange {
-        TimeRange { start: self.start + delta, end: self.end + delta }
+        TimeRange {
+            start: self.start + delta,
+            end: self.end + delta,
+        }
     }
 }
 
@@ -760,9 +779,15 @@ mod tests {
         assert_eq!(tb.continuous_to_drop_label(1799), 1799);
         assert_eq!(tb.continuous_to_drop_label(1800), 1802);
         // Round trip through the label space is stable for valid labels.
-        for c in [0i64, 1, 1797, 1798, 1799, 1800, 1801, 1802, 17981, 17982, 35964] {
+        for c in [
+            0i64, 1, 1797, 1798, 1799, 1800, 1801, 1802, 17981, 17982, 35964,
+        ] {
             let label = tb.continuous_to_drop_label(c);
-            assert_eq!(tb.drop_label_to_continuous(label), c, "label {label} for c {c}");
+            assert_eq!(
+                tb.drop_label_to_continuous(label),
+                c,
+                "label {label} for c {c}"
+            );
         }
     }
 
@@ -780,6 +805,5 @@ mod tests {
     fn invalid_rational_rejected() {
         assert!(Rational::new(1, 0).is_none());
         assert!(Rational::new_const(1, 1).num() == 1);
-
     }
 }

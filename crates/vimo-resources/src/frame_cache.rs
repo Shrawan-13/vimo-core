@@ -175,7 +175,13 @@ impl FrameCache {
         }
         self.entries.insert(
             key,
-            CacheEntry { frame: key.frame, bytes, last_used: clock, pts, handle },
+            CacheEntry {
+                frame: key.frame,
+                bytes,
+                last_used: clock,
+                pts,
+                handle,
+            },
         );
         self.lru.push(key);
         self.bytes = self.bytes.saturating_add(bytes);

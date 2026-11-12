@@ -15,7 +15,7 @@
 //! (via [`RenderContext::on_start`]) and destroyed there, so no GL object ever
 //! crosses a thread boundary.
 
-use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
+use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::thread::JoinHandle;
 
 use vimo_foundation::error::{cancelled, VimoResult};
@@ -67,7 +67,9 @@ pub struct RenderThread {
 
 impl std::fmt::Debug for RenderThread {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RenderThread").field("running", &self.handle.is_some()).finish()
+        f.debug_struct("RenderThread")
+            .field("running", &self.handle.is_some())
+            .finish()
     }
 }
 
@@ -87,10 +89,18 @@ impl RenderThread {
     ///
     /// The plan is shared with the render thread, which fills it in and then
     /// draws it.
-    pub fn render(&self, time: Time, plan: std::sync::Arc<std::sync::Mutex<FramePlan>>) -> VimoResult<()> {
+    pub fn render(
+        &self,
+        time: Time,
+        plan: std::sync::Arc<std::sync::Mutex<FramePlan>>,
+    ) -> VimoResult<()> {
         let (response_tx, response_rx) = sync_channel(1);
         self.sender
-            .send(RenderCommand::Render { time, plan, response: response_tx })
+            .send(RenderCommand::Render {
+                time,
+                plan,
+                response: response_tx,
+            })
             .map_err(|_| cancelled("render thread: the thread has stopped"))?;
         response_rx
             .recv()
@@ -126,7 +136,11 @@ fn run(mut context: Box<dyn RenderContext>, receiver: Receiver<RenderCommand>) {
     }
     while let Ok(command) = receiver.recv() {
         match command {
-            RenderCommand::Render { time, plan, response } => {
+            RenderCommand::Render {
+                time,
+                plan,
+                response,
+            } => {
                 // The plan is filled in by the caller; the render thread only
                 // draws it. Building the plan is the engine's job.
                 let result = match plan.lock() {
@@ -148,8 +162,8 @@ fn run(mut context: Box<dyn RenderContext>, receiver: Receiver<RenderCommand>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     struct CountingContext {
         drawn: Arc<AtomicUsize>,
@@ -177,7 +191,9 @@ mod tests {
             started: started.clone(),
         }));
         let plan = std::sync::Arc::new(std::sync::Mutex::new(FramePlan::new()));
-        thread.render(vimo_foundation::time::Time::ZERO, plan).unwrap();
+        thread
+            .render(vimo_foundation::time::Time::ZERO, plan)
+            .unwrap();
         assert_eq!(drawn.load(Ordering::SeqCst), 1);
         assert_eq!(started.load(Ordering::SeqCst), 1);
         thread.stop();
@@ -193,6 +209,8 @@ mod tests {
         }));
         thread.stop();
         let plan = std::sync::Arc::new(std::sync::Mutex::new(FramePlan::new()));
-        assert!(thread.render(vimo_foundation::time::Time::ZERO, plan).is_err());
+        assert!(thread
+            .render(vimo_foundation::time::Time::ZERO, plan)
+            .is_err());
     }
 }

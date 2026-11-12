@@ -12,7 +12,7 @@
 
 use std::collections::VecDeque;
 
-use crate::tier::{QualitySettings, DeviceTier};
+use crate::tier::{DeviceTier, QualitySettings};
 
 /// The thermal status reported by the platform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -161,7 +161,9 @@ impl ThermalMonitor {
         let divisor = 2f32.powi(steps.min(4) as i32);
         q.preview_scale = (q.preview_scale / divisor).clamp(0.0625, 1.0);
         q.prefetch_frames = q.prefetch_frames.saturating_sub(steps);
-        q.decoder_limit = q.decoder_limit.saturating_sub(steps.min(q.decoder_limit.saturating_sub(1)));
+        q.decoder_limit = q
+            .decoder_limit
+            .saturating_sub(steps.min(q.decoder_limit.saturating_sub(1)));
         q.effect_budget = q.effect_budget.saturating_sub(steps * 2);
         if steps >= 3 {
             q.use_proxies = true;
@@ -181,7 +183,10 @@ mod tests {
         let mut m = ThermalMonitor::new();
         let base = crate::tier::settings_for_tier(DeviceTier::High);
         for _ in 0..3 {
-            m.update(ThermalReading { state: ThermalState::Severe, temperature_c: Some(45.0) });
+            m.update(ThermalReading {
+                state: ThermalState::Severe,
+                temperature_c: Some(45.0),
+            });
         }
         assert_eq!(m.effective_state(), ThermalState::Severe);
         let q = m.apply(base, DeviceTier::High);
@@ -192,15 +197,28 @@ mod tests {
     fn quality_is_restored_only_after_sustained_cooling() {
         let mut m = ThermalMonitor::new();
         for _ in 0..3 {
-            m.update(ThermalReading { state: ThermalState::Severe, temperature_c: None });
+            m.update(ThermalReading {
+                state: ThermalState::Severe,
+                temperature_c: None,
+            });
         }
         assert_eq!(m.effective_state(), ThermalState::Severe);
         for _ in 0..3 {
-            m.update(ThermalReading { state: ThermalState::Nominal, temperature_c: None });
+            m.update(ThermalReading {
+                state: ThermalState::Nominal,
+                temperature_c: None,
+            });
         }
-        assert_eq!(m.effective_state(), ThermalState::Severe, "must not recover too early");
+        assert_eq!(
+            m.effective_state(),
+            ThermalState::Severe,
+            "must not recover too early"
+        );
         for _ in 0..10 {
-            m.update(ThermalReading { state: ThermalState::Nominal, temperature_c: None });
+            m.update(ThermalReading {
+                state: ThermalState::Nominal,
+                temperature_c: None,
+            });
         }
         assert_eq!(m.effective_state(), ThermalState::Nominal);
     }

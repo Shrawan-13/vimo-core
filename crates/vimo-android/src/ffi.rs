@@ -164,13 +164,23 @@ extern "C" {
     /// `glCreateShader`
     pub fn glCreateShader(type_: u32) -> u32;
     /// `glShaderSource`
-    pub fn glShaderSource(shader: u32, count: EGLint, string: *const *const c_char, length: *const EGLint);
+    pub fn glShaderSource(
+        shader: u32,
+        count: EGLint,
+        string: *const *const c_char,
+        length: *const EGLint,
+    );
     /// `glCompileShader`
     pub fn glCompileShader(shader: u32);
     /// `glGetShaderiv`
     pub fn glGetShaderiv(shader: u32, pname: u32, params: *mut EGLint);
     /// `glGetShaderInfoLog`
-    pub fn glGetShaderInfoLog(shader: u32, bufSize: EGLint, length: *mut EGLint, infoLog: *mut c_char);
+    pub fn glGetShaderInfoLog(
+        shader: u32,
+        bufSize: EGLint,
+        length: *mut EGLint,
+        infoLog: *mut c_char,
+    );
     /// `glDeleteShader`
     pub fn glDeleteShader(shader: u32);
     /// `glCreateProgram`
@@ -182,7 +192,12 @@ extern "C" {
     /// `glGetProgramiv`
     pub fn glGetProgramiv(program: u32, pname: u32, params: *mut EGLint);
     /// `glGetProgramInfoLog`
-    pub fn glGetProgramInfoLog(program: u32, bufSize: EGLint, length: *mut EGLint, infoLog: *mut c_char);
+    pub fn glGetProgramInfoLog(
+        program: u32,
+        bufSize: EGLint,
+        length: *mut EGLint,
+        infoLog: *mut c_char,
+    );
     /// `glUseProgram`
     pub fn glUseProgram(program: u32);
     /// `glDeleteProgram`
@@ -384,7 +399,8 @@ extern "C" {
         flags: u32,
     );
     /// `AMediaCodec_getOutputFormat`
-    pub fn AMediaCodec_getOutputFormat(codec: *mut AMediaCodec, format: *mut AMediaFormat) -> c_int;
+    pub fn AMediaCodec_getOutputFormat(codec: *mut AMediaCodec, format: *mut AMediaFormat)
+        -> c_int;
     /// `AMediaCodec_getInputFormat`
     pub fn AMediaCodec_getInputFormat(codec: *mut AMediaCodec, format: *mut AMediaFormat) -> c_int;
 
@@ -393,11 +409,19 @@ extern "C" {
     /// `AMediaFormat_delete`
     pub fn AMediaFormat_delete(format: *mut AMediaFormat);
     /// `AMediaFormat_setString`
-    pub fn AMediaFormat_setString(format: *mut AMediaFormat, name: *const c_char, value: *const c_char);
+    pub fn AMediaFormat_setString(
+        format: *mut AMediaFormat,
+        name: *const c_char,
+        value: *const c_char,
+    );
     /// `AMediaFormat_setInt32`
     pub fn AMediaFormat_setInt32(format: *mut AMediaFormat, name: *const c_char, value: c_int);
     /// `AMediaFormat_getInt32`
-    pub fn AMediaFormat_getInt32(format: *mut AMediaFormat, name: *const c_char, out: *mut c_int) -> c_int;
+    pub fn AMediaFormat_getInt32(
+        format: *mut AMediaFormat,
+        name: *const c_char,
+        out: *mut c_int,
+    ) -> c_int;
     /// `AMediaFormat_setBuffer`
     pub fn AMediaFormat_setBuffer(format: *mut AMediaFormat, buffer: *const c_void, size: usize);
     /// `AMediaFormat_getBufferSize`

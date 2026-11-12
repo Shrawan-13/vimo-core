@@ -22,8 +22,8 @@ pub mod container;
 pub mod error;
 pub mod hash;
 pub mod id;
-pub mod math;
 pub mod map;
+pub mod math;
 pub mod time;
 pub mod trace;
 

@@ -113,8 +113,9 @@ impl Decoder for MediaCodecDecoder {
         };
 
         unsafe {
-            let name = CString::new(codec_name(codec))
-                .map_err(|_| vimo_foundation::error::invalid_argument("mediacodec: bad codec name"))?;
+            let name = CString::new(codec_name(codec)).map_err(|_| {
+                vimo_foundation::error::invalid_argument("mediacodec: bad codec name")
+            })?;
             let codec_ptr = AMediaCodec_createCodecByName(name.as_ptr());
             if codec_ptr.is_null() {
                 return Err(VimoError::detailed(
@@ -218,7 +219,9 @@ impl Decoder for MediaCodecDecoder {
             .format
             .as_ref()
             .and_then(|f| f.video)
-            .unwrap_or_else(|| VideoFormat::new(1920, 1080, vimo_media::codec::PixelFormat::Surface));
+            .unwrap_or_else(|| {
+                VideoFormat::new(1920, 1080, vimo_media::codec::PixelFormat::Surface)
+            });
         let mut frame = VideoFrame::new(vimo_media::frame::FrameBuffer::new(), self.last_pts);
         frame.buffer.format = vimo_media::codec::PixelFormat::Surface;
         frame.buffer.width = format.width;
@@ -265,13 +268,17 @@ impl Decoder for MediaCodecDecoder {
 #[must_use]
 pub fn seek_mode_of(mode: SeekMode) -> i32 {
     match mode {
-        SeekMode::PreviousKeyFrame => 2,  // AMEDIA_SEEK_TO_PREVIOUS_SYNC
-        SeekMode::NextKeyFrame => 1,      // AMEDIA_SEEK_TO_NEXT_SYNC
-        SeekMode::Exact => 0,              // AMEDIA_SEEK_CLOSEST_SYNC
+        SeekMode::PreviousKeyFrame => 2, // AMEDIA_SEEK_TO_PREVIOUS_SYNC
+        SeekMode::NextKeyFrame => 1,     // AMEDIA_SEEK_TO_NEXT_SYNC
+        SeekMode::Exact => 0,            // AMEDIA_SEEK_CLOSEST_SYNC
     }
 }
 
 /// A graphics error.
 fn graphics(context: &'static str) -> VimoError {
-    VimoError::detailed(ErrorKind::Graphics, context, "the driver reported a failure")
+    VimoError::detailed(
+        ErrorKind::Graphics,
+        context,
+        "the driver reported a failure",
+    )
 }
