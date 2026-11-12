@@ -8,8 +8,8 @@ use std::ffi::c_void;
 
 use vimo_core::{
     command_tag, event_tag, status, vimo_abi_version, vimo_engine_create, vimo_engine_destroy,
-    vimo_engine_execute, vimo_engine_poll_events, vimo_engine_snapshot, vimo_engine_stats,
-    VimoCommand, VimoConfig, VimoEvent, VimoStats,
+    vimo_engine_execute, vimo_engine_load_effects, vimo_engine_poll_events, vimo_engine_snapshot,
+    vimo_engine_stats, VimoCommand, VimoConfig, VimoEvent, VimoStats,
 };
 
 fn make_config() -> VimoConfig {
@@ -340,4 +340,109 @@ fn a_project_can_be_saved_and_loaded() {
     // SAFETY: the handle is valid.
     unsafe { vimo_engine_destroy(engine) };
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_effect_from_the_manifest_can_be_added_to_a_clip() {
+    let config = make_config();
+    // SAFETY: the config outlives the call and the handle is destroyed below.
+    let engine = unsafe { vimo_engine_create(&config) };
+    assert!(!engine.is_null());
+
+    // The manifest says which effects exist; the shader implements it.
+    let manifest = br#"{"effects":[{"id":"com.vimo.effect.brightness",
+        "shader":"vimo/shaders/brightness.frag",
+        "params":[{"name":"amount","type":"float","default":0.0,"min":-1.0,"max":1.0}]}]}"#;
+    let shaders = br#"{"vimo/shaders/brightness.frag":"uniform sampler2D u_texture;\nuniform float u_amount;\nvoid main() {}"}"#;
+
+    // SAFETY: the handle is valid and the buffers are valid UTF-8.
+    let mismatches = unsafe {
+        vimo_engine_load_effects(
+            engine,
+            manifest.as_ptr(),
+            manifest.len(),
+            shaders.as_ptr(),
+            shaders.len(),
+        )
+    };
+    assert_eq!(mismatches, 0, "the manifest and the shader agree");
+
+    // A clip to hang the effect on: the project needs a source, a track
+    // and a clip.
+    let (add_asset, source) = cmd_text(command_tag::ADD_ASSET, "clip.mp4");
+    let duration = [30.0f32];
+    let add_asset = VimoCommand {
+        floats: duration.as_ptr(),
+        float_count: duration.len() as u32,
+        ..add_asset
+    };
+    // SAFETY: both pointers are valid.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &add_asset) },
+        status::OK
+    );
+    let _ = &source;
+
+    // SAFETY: both pointers are valid.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &cmd(command_tag::ADD_TRACK)) },
+        status::OK
+    );
+
+    let add_clip = VimoCommand {
+        tag: command_tag::ADD_CLIP,
+        a: 0, // track
+        b: 0, // asset
+        c: 0, // start
+        ..Default::default()
+    };
+    // SAFETY: both pointers are valid.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &add_clip) },
+        status::OK
+    );
+
+    // The effect is now known to the engine, so it can be used.
+    let command = VimoCommand {
+        tag: command_tag::ADD_EFFECT,
+        a: 0, // the owner is a clip
+        b: 0, // the clip
+        c: 0, // the first effect in the registry
+        ..Default::default()
+    };
+    // SAFETY: the handle is valid and the command is a plain value.
+    let result = unsafe { vimo_engine_execute(engine, &command) };
+    assert_eq!(result, status::OK);
+
+    // SAFETY: the handle was created above and is destroyed below.
+    unsafe { vimo_engine_destroy(engine) };
+}
+
+#[test]
+fn a_manifest_that_does_not_match_its_shader_is_reported() {
+    let config = make_config();
+    // SAFETY: the config outlives the call and the handle is destroyed below.
+    let engine = unsafe { vimo_engine_create(&config) };
+    assert!(!engine.is_null());
+
+    let manifest = br#"{"effects":[{"id":"com.vimo.effect.brightness",
+        "shader":"vimo/shaders/brightness.frag",
+        "params":[{"name":"amount","type":"float","default":0.0}]}]}"#;
+    // The shader declares a uniform that the manifest does not have.
+    let shaders = br#"{"vimo/shaders/brightness.frag":"uniform sampler2D u_texture;\nuniform float u_amount;\nuniform float u_ghost;\nvoid main() {}"}"#;
+
+    // SAFETY: the handle is valid and the buffers are valid UTF-8.
+    let mismatches = unsafe {
+        vimo_engine_load_effects(
+            engine,
+            manifest.as_ptr(),
+            manifest.len(),
+            shaders.as_ptr(),
+            shaders.len(),
+        )
+    };
+    assert_eq!(mismatches, 1);
+
+    // SAFETY: the handle was created above and is destroyed below.
+    unsafe { vimo_engine_destroy(engine) };
 }

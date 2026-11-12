@@ -618,20 +618,17 @@ pub unsafe extern "C" fn vimo_engine_load_effects(
             Err(poisoned) => poisoned.into_inner(),
         };
         let engine = &mut *guard;
-        if engine.shaders_mut().load_manifest(manifest_text).is_err() {
-            return Err(status::ERROR);
-        }
         let sources: std::collections::HashMap<String, String> =
             match serde_json::from_str(shaders_text) {
                 Ok(sources) => sources,
                 Err(_) => return Err(status::INVALID_ARGUMENT),
             };
-        for (path, source) in sources {
-            engine.shaders_mut().add_source(path, source);
-        }
         // The interface is checked now, so a manifest that does not match its
         // shaders is found at start-up rather than on the user's device.
-        Ok(engine.validate_shaders().len() as i32)
+        match engine.load_effects(manifest_text, &sources) {
+            Ok(mismatches) => Ok(mismatches as i32),
+            Err(_) => Err(status::ERROR),
+        }
     })
 }
 

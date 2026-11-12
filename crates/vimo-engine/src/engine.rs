@@ -94,7 +94,6 @@ pub struct PlaybackStats {
 pub struct Engine {
     project: Project,
     history: History,
-    registry: EffectRegistry,
     graph: RenderGraph,
     clock: MasterClock,
     prefetcher: Prefetcher,
@@ -147,10 +146,13 @@ impl Engine {
         let mut clock = MasterClock::new(source);
         clock.set_duration(duration);
         let graph = RenderGraph::new(project.clone(), registry.clone());
+        let mut shaders = vimo_gl::ShaderLibrary::new();
+        // The registry lives in the shader library, so that the effects and
+        // the code that implements them cannot drift apart.
+        *shaders.registry_mut() = registry;
         let mut engine = Engine {
             project,
             history: History::new(),
-            registry,
             graph,
             clock,
             prefetcher: Prefetcher::new(quality.prefetch_frames),
@@ -171,7 +173,7 @@ impl Engine {
             resolver: None,
             render_plan: std::sync::Arc::new(std::sync::Mutex::new(FramePlan::new())),
             render_thread: None,
-            shaders: vimo_gl::ShaderLibrary::new(),
+            shaders,
         };
         engine.intern_sources();
         engine
@@ -668,7 +670,7 @@ impl Engine {
     /// The effect registry.
     #[must_use]
     pub fn registry(&self) -> &EffectRegistry {
-        &self.registry
+        self.shaders.registry()
     }
 
     /// The shader library (the registry plus the GLSL sources).
@@ -690,7 +692,35 @@ impl Engine {
         &mut self,
         desc: vimo_manifest::EffectDesc,
     ) -> VimoResult<vimo_manifest::EffectTypeId> {
-        self.shaders.add_effect(desc)
+        let id = self.shaders.add_effect(desc)?;
+        self.sync_registry();
+        Ok(id)
+    }
+
+    /// Load the effect manifest and the shader sources.
+    ///
+    /// The manifest says which effects exist; the shaders implement them.
+    /// Both are checked against each other, so a mismatch is found when the
+    /// project is opened rather than when the user picks the effect.
+    ///
+    /// Returns the number of interface mismatches.
+    pub fn load_effects(
+        &mut self,
+        manifest: &str,
+        sources: &std::collections::HashMap<String, String>,
+    ) -> VimoResult<usize> {
+        self.shaders.load_manifest(manifest)?;
+        for (path, source) in sources {
+            self.shaders.add_source(path, source);
+        }
+        // The graph needs to know about the new effects.
+        self.sync_registry();
+        Ok(self.shaders.validate().len())
+    }
+
+    /// Give the render graph the current effect registry.
+    fn sync_registry(&mut self) {
+        self.graph.set_registry(self.shaders.registry().clone());
     }
 
     /// Check the loaded shaders against the manifest.
@@ -730,7 +760,7 @@ impl Engine {
 
     /// Load a project from a file, replacing the current one.
     pub fn load_project(&mut self, path: &std::path::Path) -> VimoResult<()> {
-        let (project, report) = SessionFiles::load(path, &self.registry)?;
+        let (project, report) = SessionFiles::load(path, self.shaders.registry())?;
         if !report.dropped_effects.is_empty() {
             self.events.push_back(EngineEvent::Error {
                 code: vimo_foundation::ErrorKind::Unsupported.code(),
@@ -746,19 +776,20 @@ impl Engine {
 
     /// Save the project to a file.
     pub fn save_project(&mut self, path: &std::path::Path) -> VimoResult<()> {
-        self.files.save(&self.project, &self.registry, path)?;
+        self.files
+            .save(&self.project, self.shaders.registry(), path)?;
         self.mark_saved();
         Ok(())
     }
 
     /// Write an autosave snapshot.
     pub fn autosave(&mut self) -> VimoResult<std::path::PathBuf> {
-        self.files.autosave(&self.project, &self.registry)
+        self.files.autosave(&self.project, self.shaders.registry())
     }
 
     /// Recover the newest autosave, if there is one.
     pub fn recover_autosave(&mut self) -> VimoResult<bool> {
-        let Some(project) = self.files.recover(&self.registry)? else {
+        let Some(project) = self.files.recover(self.shaders.registry())? else {
             return Ok(false);
         };
         self.replace_project(project);

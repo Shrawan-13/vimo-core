@@ -290,6 +290,15 @@ impl RenderGraph {
         &self.registry
     }
 
+    /// Replace the effect registry.
+    ///
+    /// The registry is replaced when the effect manifest is loaded, so that
+    /// the graph knows about the effects the manifest declared.
+    pub fn set_registry(&mut self, registry: EffectRegistry) {
+        self.registry = registry;
+        self.invalidate();
+    }
+
     /// Set the output resolution.
     pub fn set_resolution(&mut self, width: u32, height: u32) {
         if self.width != width || self.height != height {
