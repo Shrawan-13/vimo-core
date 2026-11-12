@@ -27,11 +27,19 @@ jobs:
     name: Build the native libraries
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Use the XDG base directories
+        shell: bash
+        run: |
+          # Everything that is a cache lives under one predictable root
+          # instead of a dot-folder in the home directory.
+          export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+          echo "XDG_CACHE_HOME=$XDG_CACHE_HOME" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$XDG_CACHE_HOME/cargo" >> "$GITHUB_ENV"
+          echo "$XDG_CACHE_HOME/cargo/bin" >> "$GITHUB_PATH"
 
       - name: Work out the version
         id: version
@@ -52,19 +60,18 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            ${{ env.CARGO_HOME }}/registry
+            ${{ env.CARGO_HOME }}/git
             target
           key: native-${{ runner.os }}-${{ steps.version.outputs.version }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
             native-${{ runner.os }}-${{ steps.version.outputs.version }}-
 
-      - name: Cache the NDK
-        id: cache-ndk
+      - name: Cache the cargo binaries
         uses: actions/cache@v6
         with:
-          path: ${{ steps.ndk.outputs.ndk-path }}
-          key: ndk-27.2.12479018-${{ runner.os }}
+          path: ${{ env.CARGO_HOME }}/bin
+          key: cargo-bin-${{ runner.os }}
 
       - name: Set up the NDK
         id: ndk
@@ -72,10 +79,35 @@ jobs:
         with:
           ndk-version: r27c
 
+      # The NDK is a large download, so it is cached as well.
+      - name: Cache the NDK
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.ndk.outputs.ndk-path }}
+          key: ndk-27.2.12479018-${{ runner.os }}
+
       - name: Install cargo-ndk
         uses: taiki-e/install-action@cargo-ndk
 
+      # The shim has to exist before the Rust libraries are built: they link
+      # against it.
+      - name: Build the Oboe shim
+        run: |
+          for ABI in arm64-v8a armeabi-v7a x86_64; do
+            cmake -S cpp -B "build/oboe/$ABI" \
+              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI="$ABI" \
+              -DANDROID_PLATFORM=android-26 \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$PWD/build/native/jniLibs/$ABI" \
+              >/dev/null
+            cmake --build "build/oboe/$ABI" --config Release -j2 >/dev/null
+          done
+          find build/native/jniLibs -name "*.so" | sort
+
       - name: Build the Rust libraries
+        env:
+          VIMO_NATIVE_LIB_DIR: ${{ github.workspace }}/build/native/jniLibs
         run: |
           cargo ndk \
             -t arm64-v8a \
@@ -84,22 +116,6 @@ jobs:
             -o build/native/jniLibs \
             build --release \
             -p vimo-jni
-
-      - name: Build the Oboe shim
-        run: |
-          git clone --depth 1 --branch 1.8.0 https://github.com/google/oboe.git third_party/oboe
-          for ABI in arm64-v8a armeabi-v7a x86_64; do
-            cmake -S cpp -B "build/oboe/$ABI" \
-              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
-              -DANDROID_ABI="$ABI" \
-              -DANDROID_PLATFORM=android-26 \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$PWD/build/native/jniLibs/$ABI" \
-              -DCMAKE_PREFIX_PATH="$PWD/third_party/oboe/prefab" \
-              -Doboe_DIR="$PWD/third_party/oboe/prefab/modules/oboe/libs/android.26/arm64-v8a" \
-              >/dev/null
-            cmake --build "build/oboe/$ABI" --config Release -j2 >/dev/null
-          done
 
       - name: Collect the assets
         run: |
@@ -125,21 +141,23 @@ jobs:
             > "vimo-native-${{ steps.version.outputs.version }}-android.zip.sha256"
 
       - name: Publish the release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            build/vimo-native-${{ steps.version.outputs.version }}-android.zip
-            build/vimo-native-${{ steps.version.outputs.version }}-android.zip.sha256
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Vimo native ${{ steps.version.outputs.version }}
-          body: |
-            The Android native libraries for the Vimo app.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > build/release-notes.md <<'NOTES'
+          The Android native libraries for the Vimo app.
 
-            Download `vimo-native-${{ steps.version.outputs.version }}-android.zip` and
-            unpack it: the `jniLibs` folder goes into the APK, the `assets` folder
-            holds the effect manifest and the shaders.
+          Unpack the zip: the `jniLibs` folder goes into the APK, the `assets`
+          folder holds the effect manifest and the shaders.
 
-            Verify the download with the `.sha256` file next to it.
+          Verify the download with the `.sha256` file next to it.
+          NOTES
+          gh release create "v${{ steps.version.outputs.version }}" \
+            "build/vimo-native-${{ steps.version.outputs.version }}-android.zip" \
+            "build/vimo-native-${{ steps.version.outputs.version }}-android.zip.sha256" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Vimo native ${{ steps.version.outputs.version }}" \
+            --notes-file build/release-notes.md
 
   prune-caches:
     name: Prune old Actions caches
@@ -151,6 +169,8 @@ jobs:
       actions: write
       contents: read
     steps:
+      # Keep the cache count bounded: the twenty newest are almost always the
+      # useful ones, and an unbounded cache eventually fills the runner's disk.
       - name: Keep the 20 newest repository caches
         env:
           GH_TOKEN: ${{ github.token }}

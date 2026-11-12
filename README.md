@@ -246,6 +246,20 @@ The Android libraries are built with `cargo ndk` and published as a release
 asset; the Vimo app downloads that asset at build time, so the app repository
 contains no native code. See `.github/workflows/native-release.yml`.
 
+### The caches
+
+Every cache lives under the **XDG base directory**, so there is one
+predictable root to clear and nothing is scattered through the home
+directory:
+
+| Cache | Location |
+|-------|----------|
+| The cargo registry and the installed binaries | `$XDG_CACHE_HOME/cargo` |
+| The Gradle dependencies and the downloaded native libraries | `$XDG_CACHE_HOME/gradle` and `$XDG_CACHE_HOME/vimo-native` |
+
+The CI sets `XDG_CACHE_HOME` explicitly, and a **prune job** runs after every
+build and keeps only the twenty newest repository caches.
+
 ## Benchmarks
 
 Every benchmark has a budget derived from the product requirements; the run

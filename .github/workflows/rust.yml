@@ -22,6 +22,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Use the XDG base directories
+        shell: bash
+        run: |
+          # Everything that is a cache lives under one predictable root
+          # instead of a dot-folder in the home directory.
+          export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+          echo "XDG_CACHE_HOME=$XDG_CACHE_HOME" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$XDG_CACHE_HOME/cargo" >> "$GITHUB_ENV"
+          echo "$XDG_CACHE_HOME/cargo/bin" >> "$GITHUB_PATH"
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -31,8 +41,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            ${{ env.CARGO_HOME }}/registry
+            ${{ env.CARGO_HOME }}/git
             target
           key: rust-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
@@ -41,7 +51,7 @@ jobs:
       - name: Cache the cargo binaries
         uses: actions/cache@v6
         with:
-          path: ~/.cargo/bin
+          path: ${{ env.CARGO_HOME }}/bin
           key: cargo-bin-${{ runner.os }}
 
       - name: Check the formatting
@@ -64,6 +74,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Use the XDG base directories
+        shell: bash
+        run: |
+          # Everything that is a cache lives under one predictable root
+          # instead of a dot-folder in the home directory.
+          export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+          echo "XDG_CACHE_HOME=$XDG_CACHE_HOME" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$XDG_CACHE_HOME/cargo" >> "$GITHUB_ENV"
+          echo "$XDG_CACHE_HOME/cargo/bin" >> "$GITHUB_PATH"
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -71,8 +91,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            ${{ env.CARGO_HOME }}/registry
+            ${{ env.CARGO_HOME }}/git
             target/android
           key: android-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
@@ -81,7 +101,7 @@ jobs:
       - name: Cache the cargo binaries
         uses: actions/cache@v6
         with:
-          path: ~/.cargo/bin
+          path: ${{ env.CARGO_HOME }}/bin
           key: cargo-bin-${{ runner.os }}
 
       - name: Set up the NDK
