@@ -195,7 +195,18 @@ int32_t vimo_audio_latency_frames(VimoAudio *audio) {
   if (audio == nullptr || !audio->stream) {
     return 0;
   }
-  return audio->stream->getLatencyInFrames();
+  // Oboe reports the latency in milliseconds; the frames follow from the
+  // sample rate of the stream.
+  const oboe::ResultWithValue<double> latency =
+      audio->stream->calculateLatencyMillis();
+  if (!latency) {
+    return 0;
+  }
+  const double sample_rate = static_cast<double>(audio->stream->getSampleRate());
+  if (sample_rate <= 0.0) {
+    return 0;
+  }
+  return static_cast<int32_t>(latency.value() * sample_rate / 1000.0);
 }
 
 int64_t vimo_audio_position_frames(VimoAudio *audio) {
