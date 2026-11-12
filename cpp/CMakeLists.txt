@@ -13,6 +13,13 @@ project(vimo_oboe_shim CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# CMake 4 dropped the compatibility with the policies of the projects that
+# declare an older minimum. Oboe still declares 3.4, so the floor is lowered
+# here before it is added.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+  set(CMAKE_POLICY_VERSION_MINIMUM "3.5" CACHE STRING "" FORCE)
+endif()
+
 include(FetchContent)
 
 # Oboe itself. The sample apps and the tests are not needed.
