@@ -66,19 +66,6 @@ mkdir -p "$JNI_LIBS"
 BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vimo-oboe-build.XXXXXX")"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
-for ABI in "${ABIS[@]}"; do
-  echo "Building the Oboe shim for $ABI"
-  "$CMAKE" -S "$ROOT/cpp" -B "$BUILD_DIR/$ABI" \
-    -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-    -DANDROID_ABI="$ABI" \
-    -DANDROID_PLATFORM=android-26 \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-    -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$JNI_LIBS/$ABI" \
-    >/dev/null
-  "$CMAKE" --build "$BUILD_DIR/$ABI" --config Release -j2 >/dev/null
-done
-
 echo "Building the Rust libraries"
 export VIMO_NATIVE_LIB_DIR="$JNI_LIBS"
 CARGO_NDK_ARGS=()
@@ -91,6 +78,21 @@ cargo ndk "${CARGO_NDK_ARGS[@]}" \
   build --release \
   -p vimo-jni \
   --manifest-path "$ROOT/Cargo.toml"
+
+# The shim is built after the Rust libraries, because cargo ndk empties its
+# output directory, which would take the shim with it.
+for ABI in "${ABIS[@]}"; do
+  echo "Building the Oboe shim for $ABI"
+  "$CMAKE" -S "$ROOT/cpp" -B "$BUILD_DIR/$ABI" \
+    -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+    -DANDROID_ABI="$ABI" \
+    -DANDROID_PLATFORM=android-26 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+    -DCMAKE_LIBRARY_OUTPUT_DIRECTORY="$JNI_LIBS/$ABI" \
+    >/dev/null
+  "$CMAKE" --build "$BUILD_DIR/$ABI" --config Release -j2 >/dev/null
+done
 
 # The C ABI library is not used on Android: the JNI library is the entry
 # point there. It is dropped so that it does not end up in the package.

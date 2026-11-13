@@ -134,7 +134,8 @@ jobs:
           cd ..
           sha256sum "vimo-native-${{ steps.version.outputs.version }}-android.zip" \
             > "vimo-native-${{ steps.version.outputs.version }}-android.zip.sha256"
-          ls -la build/vimo-native-${{ steps.version.outputs.version }}-android.zip
+          ls -la "vimo-native-${{ steps.version.outputs.version }}-android.zip" \
+            "vimo-native-${{ steps.version.outputs.version }}-android.zip.sha256"
 
       - name: Publish the release
         env:
