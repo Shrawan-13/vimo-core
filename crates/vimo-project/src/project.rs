@@ -52,9 +52,53 @@ impl Project {
         }
     }
 
+    /// A project with the tracks every edit starts with.
+    ///
+    /// There is one video track and one audio track. They are empty, but they
+    /// are there: a clip can always be put somewhere, and the user always
+    /// sees where the media is going to go. This is what a new project is
+    /// made of, so the editor never has to guess.
+    #[must_use]
+    pub fn with_default_tracks() -> Self {
+        let mut project = Project::new();
+        project.tracks.push(Track::new("V1", TrackKind::Video));
+        project.tracks.push(Track::new("A1", TrackKind::Audio));
+        project
+    }
+
     /// Bump the global revision.
     pub fn bump(&mut self) {
         self.revision = self.revision.wrapping_add(1);
+    }
+
+    /// Where a clip that starts at `start` belongs in a track.
+    ///
+    /// The clips of a track are kept sorted by their start time, because the
+    /// render graph looks them up with a binary search. A clip that is added
+    /// in the middle of a track therefore has to be inserted at the place its
+    /// start time belongs, and not at the end of the list.
+    ///
+    /// `skip` is the clip that is being moved: it is left out of the count,
+    /// because it is somewhere else in the list at that moment.
+    #[must_use]
+    pub fn insertion_index(&self, track: TrackId, start: Time, skip: Option<ClipId>) -> usize {
+        let Some(t) = self.tracks.get(track as usize).filter(|t| t.alive) else {
+            return 0;
+        };
+        let mut index = 0usize;
+        for &id in &t.clips {
+            if Some(id) == skip {
+                continue;
+            }
+            let Some(clip) = self.clips.get(id as usize) else {
+                continue;
+            };
+            if clip.timeline.start > start {
+                break;
+            }
+            index += 1;
+        }
+        index
     }
 
     /// Get an asset.

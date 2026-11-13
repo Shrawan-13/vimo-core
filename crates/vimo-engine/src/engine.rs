@@ -188,10 +188,11 @@ impl Engine {
     /// Start a new, empty project.
     ///
     /// The resolution and the frame rate are kept: they are the settings of
-    /// the workspace, not of the project.
+    /// the workspace, not of the project. The tracks are the default ones, so
+    /// that there is always somewhere to put a clip.
     pub fn new_project(&mut self) {
         let meta = self.project.meta.clone();
-        let mut project = Project::new();
+        let mut project = Project::with_default_tracks();
         project.meta = meta;
         self.project = project;
         self.history = History::new();

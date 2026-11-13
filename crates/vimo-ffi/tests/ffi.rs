@@ -44,6 +44,34 @@ fn cmd_text(tag: u32, text: &str) -> (VimoCommand, Vec<u8>) {
     )
 }
 
+/// An `ADD_CLIP` command.
+fn clip_cmd(track: i64, asset: i64, start_ns: i64) -> VimoCommand {
+    VimoCommand {
+        tag: command_tag::ADD_CLIP,
+        a: track,
+        b: asset,
+        c: start_ns,
+        ..Default::default()
+    }
+}
+
+/// The snapshot of the engine, parsed.
+///
+/// # Safety
+/// `engine` must be a valid handle.
+unsafe fn project_json(engine: *mut VimoEngine) -> serde_json::Value {
+    // SAFETY: the caller guarantees the handle is valid and that the buffer we
+    // allocate outlives the second call.
+    unsafe {
+        let needed = vimo_engine_snapshot(engine, std::ptr::null_mut(), 0);
+        assert!(needed > 0, "the snapshot must not be empty");
+        let mut buffer = vec![0u8; needed as usize];
+        let written = vimo_engine_snapshot(engine, buffer.as_mut_ptr(), needed);
+        assert_eq!(written, needed);
+        serde_json::from_slice(&buffer).expect("the snapshot is valid JSON")
+    }
+}
+
 #[test]
 fn create_and_destroy() {
     let config = make_config();
@@ -191,6 +219,181 @@ fn a_missing_asset_is_rejected() {
         unsafe { vimo_engine_execute(engine, &add_clip) },
         status::INVALID_ARGUMENT
     );
+    // SAFETY: the handle is valid.
+    unsafe { vimo_engine_destroy(engine) };
+}
+
+#[test]
+fn a_new_engine_starts_with_a_video_and_an_audio_track() {
+    let config = make_config();
+    // SAFETY: the config outlives the call and the handle is destroyed below.
+    let engine = unsafe { vimo_engine_create(&config) };
+    assert!(!engine.is_null());
+
+    // SAFETY: the handle is valid.
+    let json = unsafe { project_json(engine) };
+    let tracks = json["tracks"].as_array().expect("tracks");
+    assert_eq!(tracks.len(), 2, "one video track and one audio track");
+    assert_eq!(tracks[0]["kind"], "video");
+    assert_eq!(tracks[0]["name"], "V1");
+    assert_eq!(tracks[1]["kind"], "audio");
+    assert_eq!(tracks[1]["name"], "A1");
+
+    // SAFETY: the handle is valid.
+    unsafe { vimo_engine_destroy(engine) };
+}
+
+#[test]
+fn a_clip_can_be_added_without_adding_a_track_first() {
+    let config = make_config();
+    // SAFETY: the config outlives the call and the handle is destroyed below.
+    let engine = unsafe { vimo_engine_create(&config) };
+    assert!(!engine.is_null());
+
+    let (add_asset, asset_bytes) = cmd_text(command_tag::ADD_ASSET, "clip.mp4");
+    // SAFETY: both pointers are valid and the text outlives the call.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &add_asset) },
+        status::OK
+    );
+    drop(asset_bytes);
+
+    // The default video track is track 0: no ADD_TRACK is needed.
+    // SAFETY: both pointers are valid.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &clip_cmd(0, 0, 0)) },
+        status::OK
+    );
+
+    // SAFETY: the handle is valid.
+    let json = unsafe { project_json(engine) };
+    let clips = json["tracks"][0]["clips"].as_array().expect("clips");
+    assert_eq!(clips.len(), 1);
+    assert_eq!(clips[0]["asset"], 0);
+
+    // SAFETY: the handle is valid.
+    unsafe { vimo_engine_destroy(engine) };
+}
+
+#[test]
+fn a_clip_cannot_be_added_to_a_track_that_does_not_exist() {
+    let config = make_config();
+    // SAFETY: the config outlives the call and the handle is destroyed below.
+    let engine = unsafe { vimo_engine_create(&config) };
+
+    // SAFETY: both pointers are valid.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &clip_cmd(99, 0, 0)) },
+        status::INVALID_ARGUMENT
+    );
+
+    // SAFETY: the handle is valid.
+    unsafe { vimo_engine_destroy(engine) };
+}
+
+#[test]
+fn clips_are_kept_in_the_order_of_their_start() {
+    let config = make_config();
+    // SAFETY: the config outlives the call and the handle is destroyed below.
+    let engine = unsafe { vimo_engine_create(&config) };
+
+    let (add_asset, asset_bytes) = cmd_text(command_tag::ADD_ASSET, "clip.mp4");
+    // SAFETY: both pointers are valid and the text outlives the call.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &add_asset) },
+        status::OK
+    );
+    drop(asset_bytes);
+
+    // One second of media, added at the start, then at five seconds, then
+    // in the middle. The list has to follow the time, not the order of the
+    // commands.
+    // SAFETY: both pointers are valid.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &clip_cmd(0, 0, 0)) },
+        status::OK
+    );
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &clip_cmd(0, 0, 5_000_000_000)) },
+        status::OK
+    );
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &clip_cmd(0, 0, 2_000_000_000)) },
+        status::OK
+    );
+
+    // SAFETY: the handle is valid.
+    let json = unsafe { project_json(engine) };
+    let starts: Vec<i64> = json["tracks"][0]["clips"]
+        .as_array()
+        .expect("clips")
+        .iter()
+        .map(|clip| clip["startNs"].as_i64().expect("startNs"))
+        .collect();
+    assert_eq!(starts, vec![0, 2_000_000_000, 5_000_000_000]);
+
+    // Moving the clip that is at the start to the end keeps it in order.
+    // SAFETY: both pointers are valid.
+    assert_eq!(
+        unsafe {
+            vimo_engine_execute(
+                engine,
+                &VimoCommand {
+                    tag: command_tag::MOVE_CLIP,
+                    a: 0, // the clip that is at the start
+                    b: 0, // the same track
+                    c: 8_000_000_000,
+                    ..Default::default()
+                },
+            )
+        },
+        status::OK
+    );
+
+    // SAFETY: the handle is valid.
+    let json = unsafe { project_json(engine) };
+    let starts: Vec<i64> = json["tracks"][0]["clips"]
+        .as_array()
+        .expect("clips")
+        .iter()
+        .map(|clip| clip["startNs"].as_i64().expect("startNs"))
+        .collect();
+    assert_eq!(starts, vec![2_000_000_000, 5_000_000_000, 8_000_000_000]);
+
+    // SAFETY: the handle is valid.
+    unsafe { vimo_engine_destroy(engine) };
+}
+
+#[test]
+fn the_asset_is_named_and_kinded_after_its_file() {
+    let config = make_config();
+    // SAFETY: the config outlives the call and the handle is destroyed below.
+    let engine = unsafe { vimo_engine_create(&config) };
+
+    let (add_video, video_bytes) = cmd_text(command_tag::ADD_ASSET, "media/holiday clip.mp4");
+    // SAFETY: both pointers are valid and the text outlives the call.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &add_video) },
+        status::OK
+    );
+    drop(video_bytes);
+
+    let (add_audio, audio_bytes) = cmd_text(command_tag::ADD_ASSET, "music.mp3");
+    // SAFETY: both pointers are valid and the text outlives the call.
+    assert_eq!(
+        unsafe { vimo_engine_execute(engine, &add_audio) },
+        status::OK
+    );
+    drop(audio_bytes);
+
+    // SAFETY: the handle is valid.
+    let json = unsafe { project_json(engine) };
+    let assets = json["assets"].as_array().expect("assets");
+    assert_eq!(assets[0]["name"], "holiday clip");
+    assert_eq!(assets[0]["kind"], "video");
+    assert_eq!(assets[1]["name"], "music");
+    assert_eq!(assets[1]["kind"], "audio");
+
     // SAFETY: the handle is valid.
     unsafe { vimo_engine_destroy(engine) };
 }

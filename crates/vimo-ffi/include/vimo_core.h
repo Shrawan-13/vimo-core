@@ -113,7 +113,8 @@ enum {
     VIMO_CMD_SET_LOOP = 51,
     VIMO_CMD_EXPORT_PAUSE = 52,
     VIMO_CMD_EXPORT_RESUME = 53,
-    VIMO_CMD_REQUEST_SNAPSHOT = 54
+    VIMO_CMD_REQUEST_SNAPSHOT = 54,
+    VIMO_CMD_NEW_PROJECT = 55
 };
 
 /* ------------------------------------------------------------------ */

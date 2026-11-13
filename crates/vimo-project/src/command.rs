@@ -96,6 +96,18 @@ pub enum Command {
         /// The clip index.
         clip: ClipId,
     },
+    /// Move a clip to another place in its track's clip list.
+    ///
+    /// The list is kept sorted by the start time of the clips, so a clip
+    /// that is moved in time has to be moved in the list as well.
+    ReorderClip {
+        /// The track the clip belongs to.
+        track: TrackId,
+        /// Where in the track's clip list the clip goes.
+        list_index: usize,
+        /// The clip index.
+        clip: ClipId,
+    },
     /// Replace a clip's contents.
     UpdateClip {
         /// The clip index.
@@ -313,6 +325,7 @@ impl Command {
             Command::RemoveTrack { .. } | Command::RestoreTrack { .. } => "Remove Track",
             Command::AddClip { .. } => "Add Clip",
             Command::RemoveClip { .. } | Command::RestoreClip { .. } => "Delete Clip",
+            Command::ReorderClip { .. } => "Move Clip",
             Command::UpdateClip { .. } => "Edit Clip",
             Command::UpdateTrack { .. } => "Edit Track",
             Command::AddEffect { .. } => "Add Effect",
@@ -452,6 +465,31 @@ impl Command {
                 Command::RemoveClip {
                     track: *track,
                     list_index: pos,
+                    clip: *clip,
+                }
+            }
+            Command::ReorderClip {
+                track,
+                list_index,
+                clip,
+            } => {
+                let t = project
+                    .tracks
+                    .get_mut(*track as usize)
+                    .filter(|t| t.alive)
+                    .ok_or_else(|| invalid_argument("reorder clip: unknown track"))?;
+                let from = t
+                    .clips
+                    .iter()
+                    .position(|c| c == clip)
+                    .ok_or_else(|| invalid_argument("reorder clip: unknown clip"))?;
+                let id = t.clips.remove(from);
+                let to = (*list_index).min(t.clips.len());
+                t.clips.insert(to, id);
+                t.revision = t.revision.wrapping_add(1);
+                Command::ReorderClip {
+                    track: *track,
+                    list_index: from,
                     clip: *clip,
                 }
             }

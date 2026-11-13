@@ -31,7 +31,8 @@ use vimo_foundation::time::{Time, TimeRange};
 use vimo_manifest::EffectRegistry;
 use vimo_project::anim::{Interpolation, Keyframe};
 use vimo_project::model::{
-    Asset, BlendMode, Clip, EffectNode, EffectOwner, Track, TrackKind, Transform, Transition,
+    Asset, AssetKind, BlendMode, Clip, EffectNode, EffectOwner, Track, TrackKind, Transform,
+    Transition,
 };
 use vimo_project::Project;
 use vimo_render::uniforms::uniform_name;
@@ -113,7 +114,7 @@ pub mod command_tag {
     pub const SET_CLIP_SPEED: u32 = 27;
     /// Mute or unmute a clip (`a` = clip, `b` = 0/1).
     pub const SET_CLIP_MUTED: u32 = 28;
-    /// Add a track (`a` = kind, `b` = 0/1 audio).
+    /// Add a track (`a` = kind: 0 is a video track, 1 is an audio track).
     pub const ADD_TRACK: u32 = 29;
     /// Remove a track (`a` = track).
     pub const REMOVE_TRACK: u32 = 30;
@@ -139,7 +140,8 @@ pub mod command_tag {
     pub const REMOVE_KEYFRAME: u32 = 40;
     /// Set a keyframe's interpolation (`a` = effect, `b` = track, `c` = index).
     pub const SET_KEYFRAME_INTERPOLATION: u32 = 41;
-    /// Add an asset (`text` = source id, `floats[0..2]` = duration and width).
+    /// Add an asset (`text` = source id, `floats` = duration in seconds,
+    /// width, height and `1` when the source carries sound).
     pub const ADD_ASSET: u32 = 42;
     /// Remove an asset (`a` = asset).
     pub const REMOVE_ASSET: u32 = 43;
@@ -428,7 +430,7 @@ pub unsafe extern "C" fn vimo_engine_create(config: *const VimoConfig) -> *mut V
         let cfg = unsafe { *config };
         let profile = DeviceProfile::default();
         let mut engine = Engine::open(
-            Project::new(),
+            Project::with_default_tracks(),
             EffectRegistry::new(),
             profile,
             std::sync::Arc::new(MonotonicClock::new()),
@@ -922,13 +924,20 @@ fn apply_command(engine: &mut Engine, cmd: &VimoCommand, handle: &VimoEngine) ->
             let asset = cmd.b as u32;
             let start = Time::from_nanos(cmd.c);
             let project = engine.project();
-            let Some(asset_data) = project.assets.get(asset as usize) else {
+            if project.track(track).is_none() {
+                return Err(status::INVALID_ARGUMENT);
+            }
+            let Some(asset_data) = project.asset(asset) else {
                 return Err(status::INVALID_ARGUMENT);
             };
             let duration = asset_data.duration;
             let clip = Clip::new(asset, TimeRange::new(start, start + duration), Time::ZERO);
+            // The clips of a track are sorted by their start time, because the
+            // render graph looks them up with a binary search. The clip
+            // therefore goes where its start time belongs.
+            let list_index = project.insertion_index(track, start, None);
             engine
-                .execute(vimo_project::Command::add_clip(track, 0, clip))
+                .execute(vimo_project::Command::add_clip(track, list_index, clip))
                 .map_err(|_| status::ERROR)?;
             Ok(())
         }
@@ -956,25 +965,48 @@ fn apply_command(engine: &mut Engine, cmd: &VimoCommand, handle: &VimoEngine) ->
             let Some(data) = project.clip(clip) else {
                 return Err(status::INVALID_ARGUMENT);
             };
+            if project.track(track).is_none() {
+                return Err(status::INVALID_ARGUMENT);
+            }
             let duration = data.duration();
             let before = data.clone();
-            let command = vimo_project::Command::edit_clip(clip, before, |c| {
+            // The track the clip is on, and where it belongs in that track's
+            // list: the list is sorted by the start time of the clips.
+            let from_track = project.track_of_clip(clip).unwrap_or(track);
+            let moving = from_track != track;
+            let index = if moving {
+                project.insertion_index(track, new_start, None)
+            } else {
+                project.insertion_index(from_track, new_start, Some(clip))
+            };
+            let current = project.clip_position(from_track, clip).unwrap_or(0);
+            let mut commands = vec![vimo_project::Command::edit_clip(clip, before, |c| {
                 c.timeline = TimeRange::new(new_start, new_start + duration);
-            });
-            engine.execute(command).map_err(|_| status::ERROR)?;
-            // Move it to the new track if the track changed.
-            if let Some(from_track) = engine.project().track_of_clip(clip) {
-                if from_track != track {
-                    if let Some(position) = engine.project().clip_position(from_track, clip) {
-                        let move_command = vimo_project::Command::RemoveClip {
-                            track: from_track,
-                            list_index: position,
-                            clip,
-                        };
-                        engine.execute(move_command).map_err(|_| status::ERROR)?;
-                    }
-                }
+            })];
+            if moving {
+                // The clip moves to another track: it leaves the old one and
+                // joins the new one, in one step, so that one undo undoes
+                // the whole move.
+                commands.push(vimo_project::Command::RemoveClip {
+                    track: from_track,
+                    list_index: current,
+                    clip,
+                });
+                commands.push(vimo_project::Command::RestoreClip {
+                    track,
+                    list_index: index,
+                    clip,
+                });
+            } else if index != current {
+                commands.push(vimo_project::Command::ReorderClip {
+                    track: from_track,
+                    list_index: index,
+                    clip,
+                });
             }
+            engine
+                .execute(vimo_project::Command::Batch(commands))
+                .map_err(|_| status::ERROR)?;
             Ok(())
         }
         command_tag::TRIM_CLIP => {
@@ -1071,7 +1103,9 @@ fn apply_command(engine: &mut Engine, cmd: &VimoCommand, handle: &VimoEngine) ->
         }
         command_tag::SET_CLIP_MUTED => edit_clip(engine, cmd.a as u32, |c| c.muted = cmd.b != 0),
         command_tag::ADD_TRACK => {
-            let kind = if cmd.b != 0 {
+            // The kind is in `a`: zero is a video track, one is an audio
+            // track. `b` is the kind as well, so that both spellings work.
+            let kind = if cmd.a != 0 || cmd.b != 0 {
                 TrackKind::Audio
             } else {
                 TrackKind::Video
@@ -1275,7 +1309,22 @@ fn apply_command(engine: &mut Engine, cmd: &VimoCommand, handle: &VimoEngine) ->
             let source = read_text(cmd).ok_or(status::INVALID_ARGUMENT)?;
             let floats = read_floats(cmd);
             let duration = Time::from_secs_f64(floats.first().copied().unwrap_or(0.0) as f64);
-            let asset = Asset::video(source, duration);
+            let width = floats.get(1).copied().unwrap_or(0.0).max(0.0) as u32;
+            let height = floats.get(2).copied().unwrap_or(0.0).max(0.0) as u32;
+            let has_audio = floats.get(3).copied().unwrap_or(1.0) != 0.0;
+            let mut asset = Asset::video(source.clone(), duration);
+            // The platform knows the file: its name is what the user sees in
+            // the bin, and its kind decides the track it goes on.
+            asset.name = media_name(&source);
+            asset.kind = media_kind(&source);
+            if asset.kind == AssetKind::Audio {
+                asset.width = 0;
+                asset.height = 0;
+            } else {
+                asset.width = width;
+                asset.height = height;
+            }
+            asset.has_audio = has_audio;
             let command = vimo_project::Command::AddAsset { asset };
             engine.execute(command).map_err(|_| status::ERROR)?;
             Ok(())
@@ -1419,6 +1468,40 @@ fn read_floats(cmd: &VimoCommand) -> Vec<f32> {
     // floats.
     let bytes = unsafe { std::slice::from_raw_parts(cmd.floats, cmd.float_count as usize) };
     bytes.to_vec()
+}
+
+/// The name of a media file, without the directory and the extension.
+///
+/// The platform hands the core a path; the name is what the user recognises
+/// the file by, so it is what the bin shows.
+fn media_name(source: &str) -> String {
+    let file = source.rsplit(['/', '\\']).next().unwrap_or(source);
+    let stem = match file.rfind('.') {
+        Some(index) if index > 0 => &file[..index],
+        _ => file,
+    };
+    if stem.is_empty() {
+        source.to_string()
+    } else {
+        stem.to_string()
+    }
+}
+
+/// What kind of media a source is, judged by its extension.
+///
+/// The kind decides the track the media goes on: sound belongs on an audio
+/// track, everything else on a video track.
+fn media_kind(source: &str) -> AssetKind {
+    let file = source.rsplit(['/', '\\']).next().unwrap_or(source);
+    let extension = file
+        .rsplit('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    match extension.as_str() {
+        "mp3" | "wav" | "m4a" | "aac" | "ogg" | "oga" | "opus" | "flac" | "amr" => AssetKind::Audio,
+        _ => AssetKind::Video,
+    }
 }
 
 /// Convert an engine event into its FFI representation.
