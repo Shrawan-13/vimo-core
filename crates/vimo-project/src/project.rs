@@ -5,7 +5,7 @@ use vimo_foundation::time::{Time, TimeRange};
 
 use crate::model::{
     Asset, AssetId, Clip, ClipId, EffectId, EffectNode, EffectOwner, ProjectMeta, Track, TrackId,
-    Transition, TransitionId,
+    TrackKind, Transition, TransitionId,
 };
 
 /// A Vimo project.

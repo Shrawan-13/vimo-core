@@ -9,7 +9,7 @@ use std::ffi::c_void;
 use vimo_core::{
     command_tag, event_tag, status, vimo_abi_version, vimo_engine_create, vimo_engine_destroy,
     vimo_engine_execute, vimo_engine_load_effects, vimo_engine_poll_events, vimo_engine_snapshot,
-    vimo_engine_stats, VimoCommand, VimoConfig, VimoEvent, VimoStats,
+    vimo_engine_stats, VimoCommand, VimoConfig, VimoEngine, VimoEvent, VimoStats,
 };
 
 fn make_config() -> VimoConfig {
