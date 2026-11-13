@@ -165,6 +165,8 @@ pub mod command_tag {
     pub const EXPORT_RESUME: u32 = 53;
     /// Ask the engine to emit a snapshot event.
     pub const REQUEST_SNAPSHOT: u32 = 54;
+    /// Start a new, empty project.
+    pub const NEW_PROJECT: u32 = 55;
 }
 
 /// Event tags. **Never renumber an existing tag.**
@@ -630,6 +632,110 @@ pub unsafe extern "C" fn vimo_engine_load_effects(
             Err(_) => Err(status::ERROR),
         }
     })
+}
+
+/// List the projects in a directory.
+///
+/// The answer is a JSON array, one object per project: the name, the path,
+/// when it was last changed and how big it is. It is written into the
+/// caller's buffer, the same way the snapshot is.
+///
+/// Returns the number of bytes the answer needs, or a negative status.
+///
+/// # Safety
+/// `out` must point to `capacity` writable bytes, or be null.
+#[no_mangle]
+pub unsafe extern "C" fn vimo_engine_list_projects(
+    dir: *const u8,
+    dir_len: usize,
+    out: *mut u8,
+    capacity: i32,
+) -> i32 {
+    guard_value(|| {
+        if capacity < 0 {
+            return Err(status::INVALID_ARGUMENT);
+        }
+        let dir = match std::str::from_utf8(unsafe {
+            std::slice::from_raw_parts(dir, dir_len)
+        }) {
+            Ok(text) => text,
+            Err(_) => return Err(status::INVALID_ARGUMENT),
+        };
+        let json = list_projects(std::path::Path::new(dir));
+        let bytes = json.as_bytes();
+        if bytes.len() > capacity as usize {
+            return Ok(bytes.len() as i32);
+        }
+        if !out.is_null() {
+            // SAFETY: the caller guarantees `out` has `capacity` bytes.
+            unsafe {
+                std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, bytes.len());
+            }
+        }
+        Ok(bytes.len() as i32)
+    })
+}
+
+/// Delete a project.
+///
+/// # Safety
+/// `path` must point to `path_len` readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn vimo_engine_delete_project(path: *const u8, path_len: usize) -> i32 {
+    guard_value(|| {
+        let path = match std::str::from_utf8(unsafe {
+            std::slice::from_raw_parts(path, path_len)
+        }) {
+            Ok(text) => text,
+            Err(_) => return Err(status::INVALID_ARGUMENT),
+        };
+        let path = std::path::Path::new(path);
+        if !path.exists() {
+            return Err(status::INVALID_ARGUMENT);
+        }
+        if std::fs::remove_file(path).is_err() {
+            return Err(status::ERROR);
+        }
+        Ok(0)
+    })
+}
+
+/// The projects in a directory, as JSON.
+pub fn list_projects(dir: &std::path::Path) -> String {
+    let mut projects = Vec::new();
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        // A directory that does not exist holds no projects.
+        Err(_) => return "[]".to_string(),
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("vimo") {
+            continue;
+        }
+        let metadata = match entry.metadata() {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+        let modified = metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|since| since.as_secs())
+            .unwrap_or(0);
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Untitled")
+            .to_string();
+        projects.push(serde_json::json!({
+            "name": name,
+            "path": path.to_string_lossy(),
+            "modified": modified,
+            "size": metadata.len(),
+        }));
+    }
+    serde_json::to_string(&projects).unwrap_or_else(|_| "[]".to_string())
 }
 
 /// The ABI version this library implements.
@@ -1188,6 +1294,10 @@ fn apply_command(engine: &mut Engine, cmd: &VimoCommand, handle: &VimoEngine) ->
         }
         command_tag::EXPORT_RESUME => {
             engine.resume_export();
+            Ok(())
+        }
+        command_tag::NEW_PROJECT => {
+            engine.new_project();
             Ok(())
         }
         command_tag::REQUEST_SNAPSHOT => {

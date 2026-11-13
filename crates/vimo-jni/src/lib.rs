@@ -26,9 +26,9 @@ use jni::sys::{jboolean, jint, jlong, jobject, jstring};
 use jni::{JNIEnv, JavaVM};
 
 use vimo_core::{
-    command_tag, event_tag, status, vimo_engine_create, vimo_engine_destroy, vimo_engine_execute,
-    vimo_engine_poll_events, vimo_engine_snapshot, vimo_engine_stats, VimoCommand, VimoConfig,
-    VimoEvent, VimoStats,
+    command_tag, event_tag, list_projects, status, vimo_engine_create, vimo_engine_destroy,
+    vimo_engine_execute, vimo_engine_poll_events, vimo_engine_snapshot, vimo_engine_stats,
+    VimoCommand, VimoConfig, VimoEvent, VimoStats,
 };
 
 pub mod logger;
@@ -368,6 +368,56 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeLoadEffects(
         return result;
     }
     result
+}
+
+/// List the projects in a directory.
+///
+/// @return the JSON list of the projects.
+#[no_mangle]
+pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeListProjects(
+    mut env: JNIEnv,
+    _class: JClass,
+    dir: JString,
+) -> jstring {
+    let address = 0; // the listing does not need an engine
+    let _ = address;
+    let text = match env.get_string(&dir) {
+        Ok(text) => String::from_utf8_lossy(text.to_bytes()).into_owned(),
+        Err(_) => {
+            return match env.new_string("[]") {
+                Ok(value) => value.into_raw(),
+                Err(_) => std::ptr::null_mut(),
+            }
+        }
+    };
+    let json = list_projects(std::path::Path::new(&text));
+    match env.new_string(json.as_str()) {
+        Ok(value) => value.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// Delete a project.
+///
+/// @return 0 on success, a negative status otherwise.
+#[no_mangle]
+pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeDeleteProject(
+    mut env: JNIEnv,
+    _class: JClass,
+    path: JString,
+) -> jint {
+    let text = match env.get_string(&path) {
+        Ok(text) => String::from_utf8_lossy(text.to_bytes()).into_owned(),
+        Err(_) => return status::INVALID_ARGUMENT,
+    };
+    let path = std::path::Path::new(&text);
+    if !path.exists() {
+        return status::INVALID_ARGUMENT;
+    }
+    if std::fs::remove_file(path).is_err() {
+        return status::ERROR;
+    }
+    status::OK
 }
 
 /// The command tags, so the Kotlin side does not hard code them.

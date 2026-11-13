@@ -185,6 +185,23 @@ impl Engine {
         &self.project
     }
 
+    /// Start a new, empty project.
+    ///
+    /// The resolution and the frame rate are kept: they are the settings of
+    /// the workspace, not of the project.
+    pub fn new_project(&mut self) {
+        let meta = self.project.meta.clone();
+        let mut project = Project::new();
+        project.meta = meta;
+        self.project = project;
+        self.history = History::new();
+        self.dirty = false;
+        self.sync_graph();
+        let revision = self.project.revision;
+        self.events
+            .push_back(EngineEvent::ProjectChanged { revision });
+    }
+
     /// The project, mutably.
     ///
     /// Mutating the project invalidates the layer table, so the next frame
