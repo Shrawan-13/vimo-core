@@ -27,6 +27,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${1:?usage: build-native.sh <output directory> [abi ...]}"
 shift || true
 
+# The paths are absolute: the build script of the Rust crates runs with the
+# crate's own directory as its working directory.
+OUT="$(realpath -m "$OUT")"
+
 ABIS=("$@")
 if [ ${#ABIS[@]} -eq 0 ]; then
   ABIS=(arm64-v8a)
