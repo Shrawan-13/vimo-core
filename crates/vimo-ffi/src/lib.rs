@@ -655,9 +655,7 @@ pub unsafe extern "C" fn vimo_engine_list_projects(
         if capacity < 0 {
             return Err(status::INVALID_ARGUMENT);
         }
-        let dir = match std::str::from_utf8(unsafe {
-            std::slice::from_raw_parts(dir, dir_len)
-        }) {
+        let dir = match std::str::from_utf8(unsafe { std::slice::from_raw_parts(dir, dir_len) }) {
             Ok(text) => text,
             Err(_) => return Err(status::INVALID_ARGUMENT),
         };
@@ -683,9 +681,8 @@ pub unsafe extern "C" fn vimo_engine_list_projects(
 #[no_mangle]
 pub unsafe extern "C" fn vimo_engine_delete_project(path: *const u8, path_len: usize) -> i32 {
     guard_value(|| {
-        let path = match std::str::from_utf8(unsafe {
-            std::slice::from_raw_parts(path, path_len)
-        }) {
+        let path = match std::str::from_utf8(unsafe { std::slice::from_raw_parts(path, path_len) })
+        {
             Ok(text) => text,
             Err(_) => return Err(status::INVALID_ARGUMENT),
         };
