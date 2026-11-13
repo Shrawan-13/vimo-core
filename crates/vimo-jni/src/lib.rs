@@ -31,6 +31,8 @@ use vimo_core::{
     VimoEvent, VimoStats,
 };
 
+pub mod logger;
+
 /// The handles of the live engines.
 static ENGINES: Mutex<Vec<usize>> = Mutex::new(Vec::new());
 
@@ -59,6 +61,8 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeCreate(
     sample_rate: jint,
     channels: jint,
 ) -> jlong {
+    // The messages of the core go to the Android log.
+    logger::install();
     let config = VimoConfig {
         width: width.max(1) as u32,
         height: height.max(1) as u32,

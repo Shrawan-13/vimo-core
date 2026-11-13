@@ -9,7 +9,6 @@ authors.workspace = true
 
 [dependencies]
 vimo-foundation = { workspace = true }
-vimo-media = { workspace = true }
 
 [lints.rust]
 unsafe_code = "forbid"

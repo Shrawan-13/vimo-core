@@ -19,4 +19,3 @@ vimo-render = { workspace = true }
 vimo-media = { workspace = true }
 vimo-audio = { workspace = true }
 vimo-resources = { workspace = true }
-vimo-engine = { workspace = true }

@@ -214,18 +214,15 @@ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 name = "vimo-android"
 version = "0.1.0"
 dependencies = [
- "jni",
  "log",
  "vimo-audio",
  "vimo-device",
- "vimo-engine",
  "vimo-foundation",
  "vimo-gl",
  "vimo-manifest",
  "vimo-media",
  "vimo-project",
  "vimo-render",
- "vimo-resources",
 ]
 
 [[package]]
@@ -233,7 +230,6 @@ name = "vimo-audio"
 version = "0.1.0"
 dependencies = [
  "vimo-foundation",
- "vimo-media",
 ]
 
 [[package]]
@@ -241,7 +237,6 @@ name = "vimo-bench"
 version = "0.1.0"
 dependencies = [
  "vimo-audio",
- "vimo-engine",
  "vimo-foundation",
  "vimo-manifest",
  "vimo-media",
@@ -311,7 +306,6 @@ dependencies = [
  "jni",
  "log",
  "serde_json",
- "vimo-android",
  "vimo-engine",
  "vimo-ffi",
  "vimo-foundation",

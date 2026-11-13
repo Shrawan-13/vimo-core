@@ -699,13 +699,9 @@ mod tests {
         let m = Mat3::affine_2d(Vec2::new(2.0, 3.0), 0.7, Vec2::new(4.0, -1.0));
         let inv = m.inverse().unwrap();
         let id = m.mul(&inv);
-        for i in 0..9 {
+        for (i, value) in id.data.iter().enumerate() {
             let expected = if i % 4 == 0 { 1.0 } else { 0.0 };
-            assert!(
-                (id.data[i] - expected).abs() < 1e-4,
-                "index {i}: {}",
-                id.data[i]
-            );
+            assert!((value - expected).abs() < 1e-4, "index {i}: {value}");
         }
     }
 

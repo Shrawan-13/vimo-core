@@ -12,14 +12,13 @@ name = "vimo_jni"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-vimo-android = { path = "../vimo-android" }
 vimo-core = { package = "vimo-ffi", path = "../vimo-ffi" }
 vimo-foundation = { workspace = true }
 vimo-project = { workspace = true }
 vimo-engine = { workspace = true }
 vimo-manifest = { workspace = true }
 jni = "0.21"
-log = "0.4"
+log = { version = "0.4", features = ["std"] }
 serde_json = { workspace = true }
 
 [lints.rust]
