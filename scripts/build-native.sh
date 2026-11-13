@@ -66,21 +66,7 @@ mkdir -p "$JNI_LIBS"
 BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vimo-oboe-build.XXXXXX")"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
-echo "Building the Rust libraries"
-export VIMO_NATIVE_LIB_DIR="$JNI_LIBS"
-CARGO_NDK_ARGS=()
-for ABI in "${ABIS[@]}"; do
-  CARGO_NDK_ARGS+=(-t "$ABI")
-done
-
-cargo ndk "${CARGO_NDK_ARGS[@]}" \
-  -o "$JNI_LIBS" \
-  build --release \
-  -p vimo-jni \
-  --manifest-path "$ROOT/Cargo.toml"
-
-# The shim is built after the Rust libraries, because cargo ndk empties its
-# output directory, which would take the shim with it.
+# The shim is built first: the Rust libraries link against it.
 for ABI in "${ABIS[@]}"; do
   echo "Building the Oboe shim for $ABI"
   "$CMAKE" -S "$ROOT/cpp" -B "$BUILD_DIR/$ABI" \
@@ -93,6 +79,30 @@ for ABI in "${ABIS[@]}"; do
     >/dev/null
   "$CMAKE" --build "$BUILD_DIR/$ABI" --config Release -j2 >/dev/null
 done
+
+echo "Building the Rust libraries"
+export VIMO_NATIVE_LIB_DIR="$JNI_LIBS"
+CARGO_NDK_ARGS=()
+for ABI in "${ABIS[@]}"; do
+  CARGO_NDK_ARGS+=(-t "$ABI")
+done
+
+# The Rust libraries go into their own directory: cargo ndk empties the one
+# it is given, which would take the shim with it.
+RUST_LIBS="$OUT/rust"
+mkdir -p "$RUST_LIBS"
+cargo ndk "${CARGO_NDK_ARGS[@]}" \
+  -o "$RUST_LIBS" \
+  build --release \
+  -p vimo-jni \
+  --manifest-path "$ROOT/Cargo.toml"
+
+# The two sets of libraries live side by side in the APK.
+for ABI in "${ABIS[@]}"; do
+  mkdir -p "$JNI_LIBS/$ABI"
+  find "$RUST_LIBS/$ABI" -name '*.so' -exec mv -f {} "$JNI_LIBS/$ABI/" \;
+done
+rm -rf "$RUST_LIBS"
 
 # The C ABI library is not used on Android: the JNI library is the entry
 # point there. It is dropped so that it does not end up in the package.
