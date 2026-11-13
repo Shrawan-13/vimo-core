@@ -26,6 +26,7 @@ pub mod device;
 pub mod egl;
 pub mod ffi;
 pub mod mediacodec;
+pub mod render_context;
 pub mod surface;
 pub mod trace;
 
@@ -33,5 +34,6 @@ pub use audio::OboeAudioOutput;
 pub use device::{default_phone_capabilities, device_profile, AndroidCapabilities, AndroidThermal};
 pub use egl::EglRenderer;
 pub use mediacodec::MediaCodecDecoder;
+pub use render_context::AndroidRenderContext;
 pub use surface::{SurfaceResolver, SurfaceTextures};
 pub use trace::{LogcatSink, PerfettoSink};

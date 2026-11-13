@@ -34,6 +34,9 @@ pub type EGLBoolean = c_int;
 /// An `ANativeWindow`.
 pub type ANativeWindow = c_void;
 
+/// A `Surface` from the Java side.
+pub type ANativeWindowSurface = c_void;
+
 // --- EGL constants ----------------------------------------------------
 
 /// `EGL_DEFAULT_DISPLAY`
@@ -437,6 +440,12 @@ extern "C" {
     pub fn ANativeWindow_acquire(window: *mut ANativeWindow) -> c_int;
     /// `ANativeWindow_release`
     pub fn ANativeWindow_release(window: *mut ANativeWindow);
+
+    /// The native window of a Java `Surface`.
+    ///
+    /// The caller owns the result and must release it with
+    /// [`ANativeWindow_release`].
+    pub fn ANativeWindow_fromSurface(surface: *mut ANativeWindowSurface) -> *mut ANativeWindow;
     /// `ANativeWindow_getWidth`
     pub fn ANativeWindow_getWidth(window: *mut ANativeWindow) -> c_int;
     /// `ANativeWindow_getHeight`

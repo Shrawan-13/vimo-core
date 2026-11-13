@@ -319,6 +319,66 @@ pub struct VimoEngine {
     last_error: Mutex<Option<CString>>,
 }
 
+impl VimoEngine {
+    /// Attach the renderer that draws the frames.
+    ///
+    /// The context is owned by the render thread, which is created here. The
+    /// platform layer calls this once, when the output surface is ready.
+    pub fn attach_renderer(
+        &self,
+        context: Box<dyn vimo_engine::render_thread::RenderContext>,
+    ) -> vimo_foundation::error::VimoResult<()> {
+        let mut guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.attach_render_thread(vimo_engine::render_thread::RenderThread::spawn(context));
+        Ok(())
+    }
+
+    /// Draw the next frame.
+    ///
+    /// The plan is built on the calling thread and drawn on the render
+    /// thread, so no GL call ever crosses the boundary.
+    pub fn render_once(&self) -> vimo_foundation::error::VimoResult<()> {
+        let mut guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        guard.render_to_surface()
+    }
+
+    /// The effects and their shaders.
+    ///
+    /// The renderer needs its own copy, because it runs on the render thread.
+    pub fn shaders(&self) -> vimo_foundation::error::VimoResult<vimo_gl::ShaderLibrary> {
+        let guard = match self.inner.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        Ok(guard.shaders().clone())
+    }
+
+    /// Remember the output surface.
+    pub fn set_surface_handle(&self, window: usize) {
+        let mut guard = match self.surface.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        *guard = window;
+    }
+
+    /// The output surface.
+    #[must_use]
+    pub fn surface_handle(&self) -> usize {
+        let guard = match self.surface.lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        *guard
+    }
+}
+
 thread_local! {
     /// The message buffers handed to the caller. They stay valid until the
     /// next poll on the same thread.

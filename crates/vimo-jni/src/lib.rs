@@ -307,6 +307,10 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeStats(
 
 /// Hand the output surface over to the engine.
 ///
+/// The renderer is started on its own thread, because the GL context belongs
+/// to exactly one thread. A small loop then drives it: it asks the engine
+/// for the next frame and the render thread draws it.
+///
 /// # Safety
 /// Called by the JVM with a valid `Surface`.
 #[no_mangle]
@@ -315,14 +319,63 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeSetSurface(
     _class: JClass,
     handle: jlong,
     surface: JObject,
+    width: jint,
+    height: jint,
 ) -> jboolean {
     let address = handle as usize;
     if address == 0 {
         return 0;
     }
-    let _ = surface;
-    // The surface is stored by the engine's render thread; the platform layer
-    // picks it up there.
+
+    // The native window behind the Java surface.
+    let raw = surface.as_raw() as *mut vimo_android::ffi::ANativeWindowSurface;
+    let window = unsafe { vimo_android::ffi::ANativeWindow_fromSurface(raw) };
+    if window.is_null() {
+        log::error!("the output surface could not be turned into a native window");
+        return 0;
+    }
+
+    // SAFETY: the handle was created by `nativeCreate` and is not destroyed
+    // while the app runs.
+    let engine = unsafe { &*(address as *const vimo_core::VimoEngine) };
+    engine.set_surface_handle(window as usize);
+
+    let shaders = {
+        let guard = match engine.shaders() {
+            Ok(shaders) => shaders,
+            Err(_) => return 0,
+        };
+        guard.clone()
+    };
+
+    let context = vimo_android::render_context::AndroidRenderContext::new(
+        window,
+        width.max(1) as u32,
+        height.max(1) as u32,
+        shaders,
+    );
+    if engine.attach_renderer(Box::new(context)).is_err() {
+        log::error!("the renderer could not be started");
+        return 0;
+    }
+
+    // The loop that draws the frames.
+    std::thread::Builder::new()
+        .name("vimo-render".to_string())
+        .spawn(move || {
+            // SAFETY: the engine outlives the thread: it is released when the
+            // app goes away, and the thread is stopped with it.
+            let engine = unsafe { &*(address as *const vimo_core::VimoEngine) };
+            while engine.surface_handle() != 0 {
+                if engine.render_once().is_err() {
+                    // The frame could not be drawn: try again on the next
+                    // tick rather than spinning.
+                    std::thread::sleep(std::time::Duration::from_millis(16));
+                }
+            }
+        })
+        .ok();
+
     1
 }
 

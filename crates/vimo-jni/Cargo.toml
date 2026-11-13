@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 vimo-core = { package = "vimo-ffi", path = "../vimo-ffi" }
+vimo-android = { path = "../vimo-android" }
 vimo-foundation = { workspace = true }
 vimo-project = { workspace = true }
 vimo-engine = { workspace = true }

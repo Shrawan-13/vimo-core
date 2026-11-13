@@ -24,11 +24,20 @@ pub struct EglRenderer {
     context: usize,
     surface: usize,
     config: usize,
-    /// The textures that are backed by a decoder surface.
-    external: Vec<TextureId>,
 }
 
 impl EglRenderer {
+    /// The GL calls for this context.
+    ///
+    /// The renderer takes them by value; the context keeps the handles, so
+    /// that the frames can be swapped.
+    #[must_use]
+    pub fn gl_api(&self) -> EglGl {
+        EglGl {
+            external: Vec::new(),
+        }
+    }
+
     /// Create the context and make it current on this thread.
     ///
     /// `native_window` is the `ANativeWindow` the frames are drawn into.
@@ -102,7 +111,6 @@ impl EglRenderer {
                 context: context as usize,
                 surface: surface as usize,
                 config: config as usize,
-                external: Vec::new(),
             })
         }
     }
@@ -168,7 +176,17 @@ impl Drop for EglRenderer {
     }
 }
 
-impl GlApi for EglRenderer {
+/// The OpenGL ES calls, without the ownership of the context.
+///
+/// The renderer takes the GL API by value, but the EGL context itself stays
+/// with the render context, so that the frames can be swapped.
+#[derive(Debug)]
+pub struct EglGl {
+    /// The textures that are backed by a decoder surface.
+    external: Vec<TextureId>,
+}
+
+impl GlApi for EglGl {
     fn create_shader(&mut self, kind: ShaderKind, source: &str) -> VimoResult<ShaderId> {
         unsafe {
             let type_ = match kind {

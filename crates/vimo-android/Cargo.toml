@@ -18,6 +18,7 @@ vimo-audio = { workspace = true }
 vimo-render = { workspace = true }
 vimo-gl = { workspace = true }
 vimo-device = { workspace = true }
+vimo-engine = { workspace = true }
 vimo-project = { workspace = true }
 vimo-manifest = { workspace = true }
 log = "0.4"
