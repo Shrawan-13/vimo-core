@@ -315,7 +315,7 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeStats(
 /// Called by the JVM with a valid `Surface`.
 #[no_mangle]
 pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeSetSurface(
-    _env: JNIEnv,
+    mut env: JNIEnv,
     _class: JClass,
     handle: jlong,
     surface: JObject,
@@ -328,12 +328,18 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeSetSurface(
     }
 
     // The native window behind the Java surface.
-    let raw = surface.as_raw() as *mut vimo_android::ffi::ANativeWindowSurface;
-    let window = unsafe { vimo_android::ffi::ANativeWindow_fromSurface(raw) };
-    if window.is_null() {
-        log::error!("the output surface could not be turned into a native window");
-        return 0;
-    }
+    //
+    // The NDK's own `ANativeWindow_fromSurface` reads the private fields of
+    // the Surface object, which is not safe on every version of Android, so
+    // the Java method is used instead. It is the same thing the official
+    // NDK bindings for Rust do.
+    let window = match native_window(&mut env, &surface) {
+        Some(window) => window,
+        None => {
+            log::error!("the output surface could not be turned into a native window");
+            return 0;
+        }
+    };
 
     // SAFETY: the handle was created by `nativeCreate` and is not destroyed
     // while the app runs.
@@ -349,7 +355,7 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeSetSurface(
     };
 
     let context = vimo_android::render_context::AndroidRenderContext::new(
-        window,
+        window as *mut std::ffi::c_void,
         width.max(1) as u32,
         height.max(1) as u32,
         shaders,
@@ -471,6 +477,27 @@ pub extern "system" fn Java_com_teamshryne_vimo_VimoCore_nativeDeleteProject(
         return status::ERROR;
     }
     status::OK
+}
+
+/// The native window behind a Java surface.
+///
+/// The Java method `Surface.getNativeWindow` hands out the pointer. It is not
+/// part of the public API, but it is the only way to get the window without
+/// reading the private fields of the object.
+fn native_window(env: &mut JNIEnv, surface: &JObject) -> Option<usize> {
+    let value = match env.call_method(surface, "getNativeWindow", "()J", &[]) {
+        Ok(value) => value,
+        Err(_) => {
+            // The method is not there, or it is not allowed: clear the
+            // exception it raised and carry on without a renderer.
+            let _ = env.exception_clear();
+            return None;
+        }
+    };
+    match value.j() {
+        Ok(pointer) if pointer != 0 => Some(pointer as usize),
+        _ => None,
+    }
 }
 
 /// The command tags, so the Kotlin side does not hard code them.
