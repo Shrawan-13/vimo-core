@@ -3,6 +3,10 @@
 //! The Rust libraries link against the Oboe shim that CMake builds, so the
 //! linker needs to find it. The shim lands in `app/src/main/jniLibs/<abi>`,
 //! which is where the Gradle build also collects the packaged libraries.
+//!
+//! The NDK's own libraries are linked as well: `libEGL` for the GL context,
+//! `libGLESv3` for the drawing calls and `libandroid` for the native window
+//! behind a Java surface.
 
 use std::env;
 
@@ -30,4 +34,9 @@ fn main() {
     });
     println!("cargo:rustc-link-search=native={dir}/{abi}");
     println!("cargo:rustc-link-lib=dylib=vimo_oboe");
+
+    // The NDK's libraries.
+    println!("cargo:rustc-link-lib=dylib=EGL");
+    println!("cargo:rustc-link-lib=dylib=GLESv3");
+    println!("cargo:rustc-link-lib=dylib=android");
 }
